@@ -48,10 +48,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
 
       const data = await response.json();
-      setHasMasterPrompt(data.hasMasterPrompt);
-      return data.hasMasterPrompt;
+      setHasMasterPrompt(Boolean(data.hasMasterPrompt));
+      return Boolean(data.hasMasterPrompt);
     } catch (err: unknown) {
       console.error('Error syncing profile with backend:', err);
+      // Ensure hasMasterPrompt is resolved so app does not hang on spinner
+      setHasMasterPrompt(false);
       return false;
     }
   }, []);
@@ -67,12 +69,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       });
       if (response.ok) {
         const data = await response.json();
-        setHasMasterPrompt(data.hasMasterPrompt);
-        return data.hasMasterPrompt;
+        const hasPrompt = Boolean(data.hasMasterPrompt);
+        setHasMasterPrompt(hasPrompt);
+        return hasPrompt;
       }
+      setHasMasterPrompt(false);
       return false;
     } catch (err) {
       console.error('Failed to check master prompt status:', err);
+      setHasMasterPrompt(false);
       return false;
     }
   }, []);
@@ -89,6 +94,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         } catch (err: unknown) {
           console.error('Error acquiring ID token on auth change:', err);
           setError(err instanceof Error ? err.message : 'Authentication failed');
+          setHasMasterPrompt(false);
         }
       } else {
         setIdToken(null);

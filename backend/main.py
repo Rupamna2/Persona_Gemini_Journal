@@ -1,5 +1,16 @@
 """FastAPI backend entrypoint for Personal Gemini Journal."""
 
+import os
+from pathlib import Path
+from dotenv import load_dotenv
+
+# Explicitly load backend/.env into environment at startup
+env_path = Path(__file__).resolve().parent / ".env"
+if env_path.exists():
+    load_dotenv(dotenv_path=env_path, override=True)
+else:
+    load_dotenv(override=True)
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from backend.routes.auth_routes import router as auth_router

@@ -6,9 +6,17 @@ import json
 import logging
 import urllib.request
 import urllib.error
+from pathlib import Path
 from typing import List, Optional, Any, Dict
+from dotenv import load_dotenv
 from google import genai
 from google.genai import types
+
+env_path = Path(__file__).resolve().parent.parent / ".env"
+if env_path.exists():
+    load_dotenv(dotenv_path=env_path, override=True)
+else:
+    load_dotenv(override=True)
 
 logger = logging.getLogger(__name__)
 
