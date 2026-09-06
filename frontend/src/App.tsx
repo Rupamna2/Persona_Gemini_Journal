@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { AuthProvider, useAuth } from './auth/AuthContext';
 import { LandingPage } from './pages/LandingPage';
 import { OnboardingPage } from './pages/OnboardingPage';
@@ -10,10 +10,58 @@ import { SubscriptionPage } from './pages/SubscriptionPage';
 
 type ScreenView = 'dashboard' | 'chat' | 'memory-vault' | 'patterns' | 'subscription' | 'onboarding';
 
+interface ErrorBoundaryProps {
+  children: React.ReactNode;
+}
+
+interface ErrorBoundaryState {
+  hasError: boolean;
+  error: Error | null;
+}
+
+class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  constructor(props: ErrorBoundaryProps) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error: Error): ErrorBoundaryState {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    console.error('App Uncaught Error:', error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="min-h-screen bg-base text-text-primary flex flex-col items-center justify-center p-6 text-center space-y-4">
+          <div className="p-6 rounded-2xl bg-surface border border-state-danger/30 max-w-md w-full space-y-3">
+            <h2 className="text-base font-bold text-state-danger">Something went wrong</h2>
+            <p className="text-xs text-text-muted">
+              {this.state.error?.message || 'An unexpected rendering error occurred.'}
+            </p>
+            <button
+              type="button"
+              onClick={() => window.location.reload()}
+              className="px-4 py-2 rounded-xl bg-accent-primary hover:bg-accent-hover text-white text-xs font-semibold transition cursor-pointer"
+            >
+              Reload Application
+            </button>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 function AuthenticatedApp() {
   const { user, hasMasterPrompt, loading } = useAuth();
   const [currentScreen, setCurrentScreen] = useState<ScreenView>('dashboard');
   const [activeChatMode, setActiveChatMode] = useState<JournalMode>('FreeWrite');
+  const [vaultInitialQuery, setVaultInitialQuery] = useState<string>('');
 
   if (loading) {
     return (
@@ -32,8 +80,6 @@ function AuthenticatedApp() {
   if (hasMasterPrompt === false || currentScreen === 'onboarding') {
     return <OnboardingPage onComplete={() => setCurrentScreen('dashboard')} />;
   }
-
-  const [vaultInitialQuery, setVaultInitialQuery] = useState<string>('');
 
   // Screen routing
   switch (currentScreen) {
@@ -94,9 +140,11 @@ function AuthenticatedApp() {
 
 export function App() {
   return (
-    <AuthProvider>
-      <AuthenticatedApp />
-    </AuthProvider>
+    <ErrorBoundary>
+      <AuthProvider>
+        <AuthenticatedApp />
+      </AuthProvider>
+    </ErrorBoundary>
   );
 }
 
