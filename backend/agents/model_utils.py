@@ -43,6 +43,56 @@ def get_genai_client() -> genai.Client:
     return genai.Client(api_key=api_key)
 
 
+def normalize_contents_for_openai(contents: Any) -> List[Dict[str, str]]:
+    """Convert Gemini contents structure or raw strings/dicts into standard OpenAI format."""
+    messages = []
+    if isinstance(contents, str):
+        return [{"role": "user", "content": contents}]
+    if isinstance(contents, dict):
+        role = "assistant" if contents.get("role") in ("model", "assistant") else "user"
+        if "content" in contents:
+            return [{"role": role, "content": str(contents["content"])}]
+        if "parts" in contents:
+            text = "".join(p.get("text", "") if isinstance(p, dict) else str(p) for p in contents.get("parts", []))
+            return [{"role": role, "content": text}]
+        return [{"role": role, "content": str(contents)}]
+    if isinstance(contents, list):
+        for item in contents:
+            if isinstance(item, str):
+                messages.append({"role": "user", "content": item})
+            elif isinstance(item, dict):
+                role = "assistant" if item.get("role") in ("model", "assistant") else "user"
+                if "content" in item:
+                    messages.append({"role": role, "content": str(item["content"])})
+                elif "parts" in item:
+                    text = "".join(p.get("text", "") if isinstance(p, dict) else str(p) for p in item.get("parts", []))
+                    messages.append({"role": role, "content": text})
+                else:
+                    messages.append({"role": role, "content": str(item)})
+            else:
+                messages.append({"role": "user", "content": str(item)})
+    return messages
+
+
+def extract_text_from_nvidia_content(raw_content: Any) -> str:
+    """Extract string content whether NVIDIA returned a plain string, dict, or list of parts."""
+    if isinstance(raw_content, str):
+        return raw_content
+    if isinstance(raw_content, dict):
+        if "text" in raw_content:
+            return str(raw_content["text"])
+        return str(raw_content)
+    if isinstance(raw_content, list):
+        parts = []
+        for p in raw_content:
+            if isinstance(p, dict) and "text" in p:
+                parts.append(str(p["text"]))
+            elif isinstance(p, str):
+                parts.append(p)
+        return "".join(parts)
+    return str(raw_content or "")
+
+
 def generate_nvidia_content(
     contents: Any,
     system_instruction: Optional[str] = None,
@@ -55,22 +105,11 @@ def generate_nvidia_content(
     if not api_key:
         raise ValueError("NVIDIA_API_KEY not found in environment")
 
-    messages = []
+    messages: List[Dict[str, str]] = []
     if system_instruction:
         messages.append({"role": "system", "content": system_instruction})
 
-    if isinstance(contents, str):
-        messages.append({"role": "user", "content": contents})
-    elif isinstance(contents, list):
-        for item in contents:
-            if isinstance(item, dict) and "role" in item and "content" in item:
-                messages.append(item)
-            elif isinstance(item, str):
-                messages.append({"role": "user", "content": item})
-            else:
-                messages.append({"role": "user", "content": str(item)})
-    else:
-        messages.append({"role": "user", "content": str(contents)})
+    messages.extend(normalize_contents_for_openai(contents))
 
     payload = {
         "model": model,
@@ -93,7 +132,8 @@ def generate_nvidia_content(
     with urllib.request.urlopen(req, timeout=20.0) as resp:
         result = json.loads(resp.read().decode("utf-8"))
         if "choices" in result and len(result["choices"]) > 0:
-            return result["choices"][0]["message"]["content"]
+            raw_content = result["choices"][0]["message"]["content"]
+            return extract_text_from_nvidia_content(raw_content)
         return ""
 
 

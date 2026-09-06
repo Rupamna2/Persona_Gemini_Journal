@@ -125,13 +125,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setIdToken(token);
       await syncUserProfile(result.user, token);
     } catch (err: any) {
-      console.error('Google Sign-In failed:', err);
-      if (err?.code === 'auth/unauthorized-domain') {
+      console.error('Google Sign-In error:', err);
+      const code = err?.code || '';
+      if (code === 'auth/popup-closed-by-user' || code === 'auth/cancelled-popup-request') {
+        // User voluntarily dismissed popup, no warning banner required
+        setError(null);
+      } else if (code === 'auth/network-request-failed') {
+        setError(
+          'Network request to Firebase Auth failed. Please check your connection, disable aggressive adblockers/Brave shields for localhost, and try clicking "Continue with Google" again.'
+        );
+      } else if (code === 'auth/popup-blocked') {
+        setError(
+          'The Google Sign-In popup was blocked by your browser. Please allow popups for localhost:5173 and try again.'
+        );
+      } else if (code === 'auth/unauthorized-domain') {
         setError(
           `Domain "${window.location.hostname}" is not authorized in Firebase. Add "${window.location.hostname}" to Firebase Console -> Authentication -> Settings -> Authorized Domains.`
         );
       } else {
-        setError(err instanceof Error ? err.message : 'Google Sign-In failed');
+        setError(err instanceof Error ? err.message : 'Google Sign-In failed. Please try again.');
       }
     } finally {
       setLoading(false);
