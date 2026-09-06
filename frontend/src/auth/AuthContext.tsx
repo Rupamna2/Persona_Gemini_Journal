@@ -29,6 +29,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [error, setError] = useState<string | null>(null);
 
   const syncUserProfile = useCallback(async (currentUser: User, token: string) => {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 8000); // 8s timeout safeguard
+
     try {
       const response = await fetch('/api/auth/sync', {
         method: 'POST',
@@ -41,18 +44,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           email: currentUser.email || '',
           photoURL: currentUser.photoURL || '',
         }),
+        signal: controller.signal,
       });
+      clearTimeout(timeoutId);
 
       if (!response.ok) {
         throw new Error(`Profile sync failed with status ${response.status}`);
       }
 
       const data = await response.json();
-      setHasMasterPrompt(Boolean(data.hasMasterPrompt));
-      return Boolean(data.hasMasterPrompt);
+      const hasPrompt = Boolean(data.hasMasterPrompt);
+      setHasMasterPrompt(hasPrompt);
+      return hasPrompt;
     } catch (err: unknown) {
-      console.error('Error syncing profile with backend:', err);
-      // Ensure hasMasterPrompt is resolved so app does not hang on spinner
+      clearTimeout(timeoutId);
+      console.warn('Profile sync with backend fallback:', err);
+      // Ensure hasMasterPrompt is resolved so app does not hang on loading spinner
       setHasMasterPrompt(false);
       return false;
     }
@@ -60,13 +67,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const checkMasterPromptStatus = useCallback(async (): Promise<boolean> => {
     if (!auth.currentUser) return false;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 8000);
+
     try {
       const token = await auth.currentUser.getIdToken();
       const response = await fetch('/api/auth/me', {
         headers: {
           Authorization: `Bearer ${token}`,
         },
+        signal: controller.signal,
       });
+      clearTimeout(timeoutId);
+
       if (response.ok) {
         const data = await response.json();
         const hasPrompt = Boolean(data.hasMasterPrompt);
@@ -76,14 +89,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setHasMasterPrompt(false);
       return false;
     } catch (err) {
-      console.error('Failed to check master prompt status:', err);
+      clearTimeout(timeoutId);
+      console.warn('Failed to check master prompt status:', err);
       setHasMasterPrompt(false);
       return false;
     }
   }, []);
 
   useEffect(() => {
-    // Listen for auth state changes
+    // Listen for auth state changes (single source of truth for user state)
     const unsubscribeAuth = onAuthStateChanged(auth, async (currentUser) => {
       setUser(currentUser);
       if (currentUser) {
@@ -93,12 +107,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           await syncUserProfile(currentUser, token);
         } catch (err: unknown) {
           console.error('Error acquiring ID token on auth change:', err);
-          setError(err instanceof Error ? err.message : 'Authentication failed');
+          setError(err instanceof Error ? err.message : 'Authentication token error');
           setHasMasterPrompt(false);
         }
       } else {
         setIdToken(null);
-        setHasMasterPrompt(null);
+        setHasMasterPrompt(false);
       }
       setLoading(false);
     });
@@ -106,8 +120,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // Listen for token refreshes (ID tokens expire in 1hr)
     const unsubscribeToken = onIdTokenChanged(auth, async (currentUser) => {
       if (currentUser) {
-        const token = await currentUser.getIdToken();
-        setIdToken(token);
+        try {
+          const token = await currentUser.getIdToken();
+          setIdToken(token);
+        } catch (err) {
+          console.error('Token refresh error:', err);
+        }
       } else {
         setIdToken(null);
       }
@@ -122,23 +140,31 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signInWithGoogle = async () => {
     setError(null);
     setLoading(true);
+
+    // Timeout safeguard: never allow loading spinner to hang past 25s
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('Sign-in operation timed out. Please try again.')), 25000)
+    );
+
     try {
       // Force Google Account picker on click
       googleAuthProvider.setCustomParameters({ prompt: 'select_account' });
-      const result = await signInWithPopup(auth, googleAuthProvider);
-      const token = await result.user.getIdToken();
-      setUser(result.user);
-      setIdToken(token);
-      await syncUserProfile(result.user, token);
+      await Promise.race([
+        signInWithPopup(auth, googleAuthProvider),
+        timeoutPromise,
+      ]);
+      // onAuthStateChanged handles user state, token retrieval, and backend sync
     } catch (err: any) {
       console.error('Google Sign-In error:', err);
       const code = err?.code || '';
+      const msg = err?.message || '';
+
       if (code === 'auth/popup-closed-by-user' || code === 'auth/cancelled-popup-request') {
         // User voluntarily dismissed popup, no warning banner required
         setError(null);
       } else if (code === 'auth/network-request-failed') {
         setError(
-          'Network request to Firebase Auth failed. Please check your connection, disable aggressive adblockers/Brave shields for localhost, and try clicking "Continue with Google" again.'
+          'Network connection to Firebase Auth was interrupted. Please check your internet connection or adblocker, then click "Retry Sign In" below.'
         );
       } else if (code === 'auth/popup-blocked') {
         setError(
@@ -148,6 +174,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setError(
           `Domain "${window.location.hostname}" is not authorized in Firebase. Add "${window.location.hostname}" to Firebase Console -> Authentication -> Settings -> Authorized Domains.`
         );
+      } else if (msg.includes('timed out')) {
+        setError('Sign-in window timed out. Please click "Retry Sign In" to try again.');
       } else {
         setError(err instanceof Error ? err.message : 'Google Sign-In failed. Please try again.');
       }
@@ -161,13 +189,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setLoading(true);
     try {
       await firebaseSignOut(auth);
-      setUser(null);
-      setIdToken(null);
-      setHasMasterPrompt(null);
     } catch (err: unknown) {
       console.error('Sign-out failed:', err);
       setError(err instanceof Error ? err.message : 'Sign out failed');
     } finally {
+      // Immediate clean state reset
+      setUser(null);
+      setIdToken(null);
+      setHasMasterPrompt(false);
       setLoading(false);
     }
   };
