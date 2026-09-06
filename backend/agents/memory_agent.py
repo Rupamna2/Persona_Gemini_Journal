@@ -1,4 +1,4 @@
-"""Memory Agent performing KNN semantic search and grounded synthesis over past journal entries."""
+"""Memory Agent performing KNN semantic search and grounded synthesis over past journal entries with geolocation awareness."""
 
 import logging
 import math
@@ -13,13 +13,13 @@ from backend.agents.model_utils import generate_content_with_fallback
 logger = logging.getLogger(__name__)
 
 MEMORY_SYNTHESIS_SYSTEM_PROMPT = """You are the Personal Gemini Journal Memory Vault Assistant.
-Your goal is to answer the user's query about their life, thoughts, decisions, and history using ONLY the retrieved journal entries provided below.
+Your goal is to answer the user's query about their life, thoughts, decisions, history, and places they visited using ONLY the retrieved journal entries provided below.
 
 GROUNDING & INTEGRITY INSTRUCTIONS:
 1. Base your answer STRICTLY and EXCLUSIVELY on the retrieved journal entries.
 2. DO NOT invent, hallucinate, extrapolate, or assume any facts, events, or decisions not directly mentioned in the entries.
 3. If the retrieved entries do not contain sufficient information to answer the question, clearly state: "Based on your past journal entries, I couldn't find specific details regarding [topic]."
-4. Explicitly reference relevant dates or journal titles in your answer so the user knows when those reflections took place.
+4. Explicitly reference relevant dates, locations, or journal titles in your answer so the user knows when and where those reflections took place.
 5. Keep your tone empathetic, clear, structured, and insightful.
 """
 
@@ -64,6 +64,8 @@ def search_user_journals_knn(
                     "title": data.get("title", "Journal Entry"),
                     "mode": data.get("mode", "FreeWrite"),
                     "summary": data.get("summary", {}),
+                    "location": data.get("location"),
+                    "weather": data.get("weather"),
                     "embedding": data.get("embedding", []),
                     "createdAt": data.get("createdAt", ""),
                 })
@@ -90,6 +92,8 @@ def search_user_journals_knn(
                 "title": data.get("title", "Journal Entry"),
                 "mode": data.get("mode", "FreeWrite"),
                 "summary": data.get("summary", {}),
+                "location": data.get("location"),
+                "weather": data.get("weather"),
                 "createdAt": data.get("createdAt", ""),
                 "similarity_score": score,
             })
@@ -131,11 +135,23 @@ def run_memory_search(
         j_date = entry.get("date", "")
         j_title = entry.get("title", "")
         summary_dict = entry.get("summary", {}) or {}
+        location_dict = entry.get("location") or {}
+        weather_dict = entry.get("weather") or {}
+
         insights = summary_dict.get("key_insights", [])
         actions = summary_dict.get("action_items", [])
         topic = summary_dict.get("topic", "")
 
-        excerpt_text = f"Title: {j_title}\nDate: {j_date}\nKey Insights: {', '.join(insights) if insights else topic}"
+        loc_label = location_dict.get("display_name") or location_dict.get("city")
+        weather_label = weather_dict.get("condition")
+
+        meta_parts = [f"Date: {j_date}"]
+        if loc_label:
+            meta_parts.append(f"Location: {loc_label}")
+        if weather_label:
+            meta_parts.append(f"Weather: {weather_label}")
+
+        excerpt_text = f"Title: {j_title}\n{', '.join(meta_parts)}\nKey Insights: {', '.join(insights) if insights else topic}"
         if actions:
             excerpt_text += f"\nAction Items: {', '.join(actions)}"
 
@@ -147,6 +163,8 @@ def run_memory_search(
             "title": j_title,
             "excerpt": insights[0] if insights else (topic or j_title),
             "similarity_score": round(entry.get("similarity_score", 0.85), 3),
+            "location": location_dict if location_dict else None,
+            "weather": weather_dict if weather_dict else None,
         })
 
     full_context_str = "\n\n".join(context_blocks)
@@ -157,7 +175,7 @@ def run_memory_search(
 Retrieved Journal Entries from User's Private Vault:
 {full_context_str}
 
-Please synthesize a clear, helpful response answering the question based ONLY on the entries above. Cite specific dates and titles where appropriate."""
+Please synthesize a clear, helpful response answering the question based ONLY on the entries above. Cite specific dates, locations, and titles where appropriate."""
 
     try:
         answer_text = generate_content_with_fallback(

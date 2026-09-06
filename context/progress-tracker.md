@@ -4,11 +4,11 @@ Update this file after every meaningful implementation change.
 
 ## Current Phase
 
-- Phase 3 — Enhancements (Completed) / Deploy (Ready)
+- Phase 3 — Enhancements & Geolocation Engine (Completed) / Deploy (Ready)
 
 ## Current Goal
 
-- Unit 17 completed. Ready to proceed to Unit 18: Deploy — Cloud Run backend + Firebase Hosting frontend + firestore.rules (`context/feature-specs/18-deploy.md`).
+- Unit 19 completed. Ready to proceed to Unit 18: Deploy — Cloud Run backend + Firebase Hosting frontend + firestore.rules (`context/feature-specs/18-deploy.md`).
 
 ## Completed
 
@@ -29,15 +29,15 @@ Update this file after every meaningful implementation change.
 - **Unit 15 — Weather enrichment subscriber**: Built `backend/services/weather_enrichment.py`, `backend/subscriber/auth_oidc.py` (strict OIDC JWT verification blocking spoofed push requests before BigQuery invocation), and `backend/subscriber/main.py` (Cloud Run push subscriber service with `/pubsub/push` and `/health`). Implemented parameterized BigQuery NOAA GSOD dataset querying with resilient climate fallbacks and direct field updates on `users/{uid}/journals/{journalId}.weather`. Verified with 5 unit/integration tests (48 total backend tests passing) and clean frontend build (2.15s).
 - **Unit 16 — Life Pattern Analytics**: Built `backend/agents/analytics_agent.py` (mood trends, NOAA weather condition grouping, topic breakdowns, and grounded Gemini AI insight generation) and `backend/routes/analytics.py` (`GET /api/analytics/patterns`). Connected `PatternsPage.tsx` to live analytics with honest "Not Enough Data Yet" zero-state and DOMPurify sanitization. Verified with 4 unit/integration tests (52 total backend tests passing) and clean frontend build (2.23s).
 - **Unit 17 — Grounding check safety net**: Implemented non-diagnostic responsible-AI crisis phrase and sustained low-mood conditional detection in `root_agent.py` and `routes/chat.py`. Wired calm, dismissible, non-blocking support card with 24/7 lifeline chips and DOMPurify sanitization in `ChatPage.tsx`. Verified with 4 unit/integration tests (56 total backend tests passing) and clean frontend build (2.15s).
-- **Multi-Provider Resilient LLM Engine (Gemini + NVIDIA NIM 120B/11B)**: Integrated dual-provider architecture in `backend/agents/model_utils.py` with instant failover from Google Gemini (when 429 quota exhausted) to NVIDIA NIM (`meta/llama-3.2-11b-vision-instruct`, `nvidia/nemotron-3-super-120b-a12b`, `nvidia/nemotron-3.5-lightning-30b`), robust JSON cleaning in `mood_analyzer.py` and `summary_agent.py`, and verified full test suite (56/56 passing).
+- **Multi-Provider Resilient LLM Engine (Gemini + NVIDIA NIM 120B/11B)**: Integrated dual-provider architecture in `backend/agents/model_utils.py` with instant failover from Google Gemini (when 429 quota exhausted) to NVIDIA NIM (`meta/llama-3.2-11b-vision-instruct`, `nvidia/nemotron-3-super-120b-a12b`, `nvidia/nemotron-3.5-lightning-30b`), robust JSON cleaning in `mood_analyzer.py` and `summary_agent.py`.
+- **Unit 19 — Geo-Location Memory & Location-Mood Happiness Predictor with Free Weather Integration (India + Global)**: Implemented Open-Meteo free real-time weather API integration (no API key required) supporting Indian cities (Bengaluru, Mumbai, Delhi, Kolkata, Chennai, Hyderabad, Pune, Goa, Jaipur, Ahmedabad, Kochi, Chandigarh, Noida, Gurugram) and global metros with BigQuery NOAA fallback. Built Location-Mood Happiness Predictor in `analytics_agent.py` and `PatternsPage.tsx` comparing mood deltas across locations, location-enriched 768-dim embeddings in `routes/save.py`, geolocation metadata & weather badge cards in `MemoryVaultPage.tsx`, and geolocation header pill with auto-location detection in `ChatPage.tsx`. Verified with 8 unit/integration tests (64 total backend tests passing) and clean frontend build (7.51s).
 
 ## In Progress
 
-- Unit 19 — Geo-Location Memory & Location-Mood Happiness Predictor (Spec Created)
+- Unit 18 — Deploy: Cloud Run backend + Firebase Hosting frontend + firestore.rules (`context/feature-specs/18-deploy.md`)
 
 ## Next Up
 
-- Unit 19 implementation (`context/feature-specs/19-geolocation-weather-memory.md`)
 - `context/feature-specs/18-deploy.md`
 
 ## Open Questions

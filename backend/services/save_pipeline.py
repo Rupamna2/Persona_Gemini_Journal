@@ -1,4 +1,4 @@
-"""Atomic Firestore transactional save pipeline for journal entries and streaks."""
+"""Atomic Firestore transactional save pipeline for journal entries, streaks, and geolocation."""
 
 import logging
 from datetime import datetime, timezone, timedelta, date
@@ -6,6 +6,7 @@ from typing import Dict, Any, List, Optional, Tuple
 from google.cloud import firestore
 
 from backend.services.user_service import get_firestore_client
+from backend.services.weather_enrichment import get_weather_for_location
 
 logger = logging.getLogger(__name__)
 
@@ -54,6 +55,8 @@ def execute_atomic_session_save(
     messages: List[Dict[str, Any]],
     summary: Dict[str, Any],
     embedding: List[float],
+    location: Optional[Dict[str, Any]] = None,
+    city: Optional[str] = None,
 ) -> Tuple[str, Dict[str, Any]]:
     """Execute atomic transaction saving journal doc, updating streak stats, and ending session.
 
@@ -64,6 +67,12 @@ def execute_atomic_session_save(
     now_iso = now_utc.isoformat()
     today_date = now_utc.date()
     journal_id = f"jnl_{int(now_utc.timestamp())}_{session_id[:8]}"
+
+    # Resolve real-time weather using Open-Meteo free API
+    lat = location.get("latitude") if location else None
+    lon = location.get("longitude") if location else None
+    resolved_city = (location.get("city") if location and location.get("city") else city) or "Bengaluru"
+    weather_data = get_weather_for_location(city=resolved_city, lat=lat, lon=lon)
 
     journal_ref = db.collection("users").document(uid).collection("journals").document(journal_id)
     streaks_ref = db.collection("users").document(uid).collection("stats").document("streaks")
@@ -89,7 +98,8 @@ def execute_atomic_session_save(
             "messages": messages,
             "summary": summary,
             "embedding": embedding,
-            "weather": None,  # Will be enriched asynchronously by background task
+            "location": location,
+            "weather": weather_data,
         }
 
         # 4. Write journal doc

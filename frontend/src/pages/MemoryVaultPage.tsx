@@ -9,6 +9,8 @@ import {
   Filter,
   CheckCircle2,
   Info,
+  MapPin,
+  Cloud,
 } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
 
@@ -18,6 +20,15 @@ interface Citation {
   title: string;
   excerpt: string;
   similarity_score?: number | null;
+  location?: {
+    city?: string;
+    country?: string;
+    display_name?: string;
+  } | null;
+  weather?: {
+    condition?: string;
+    temperature_c?: number;
+  } | null;
 }
 
 interface MemoryVaultPageProps {
@@ -106,14 +117,14 @@ export const MemoryVaultPage: React.FC<MemoryVaultPageProps> = ({
               </div>
               <div>
                 <h1 className="text-base font-bold text-text-primary">Memory Vault</h1>
-                <p className="text-[11px] text-text-muted">768-dim Vector KNN Semantic Recall</p>
+                <p className="text-[11px] text-text-muted">768-dim Vector KNN Semantic & Geo Recall</p>
               </div>
             </div>
           </div>
 
           <div className="text-xs text-text-muted hidden sm:flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-state-success animate-pulse" />
-            <span>Firestore Vector Index Active</span>
+            <span>Firestore Vector & Geo Index Active</span>
           </div>
         </div>
       </header>
@@ -127,7 +138,7 @@ export const MemoryVaultPage: React.FC<MemoryVaultPageProps> = ({
               Ask Your Journal Anything
             </h2>
             <p className="text-xs sm:text-sm text-text-muted leading-relaxed">
-              Semantically recall past reflections, how you navigated decisions, or how your habits evolved over time.
+              Semantically recall past reflections, cities you explored, decisions you weighed, or how your thoughts evolved.
             </p>
           </div>
 
@@ -136,7 +147,7 @@ export const MemoryVaultPage: React.FC<MemoryVaultPageProps> = ({
               type="text"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="e.g. What were my decisions about project architecture or team leadership?"
+              placeholder="e.g. What did I reflect on while in Bengaluru? Or decisions about my career?"
               className="w-full pl-11 pr-28 py-3.5 rounded-2xl bg-base border border-border-default focus:border-accent-primary focus:outline-none text-text-primary text-sm placeholder:text-text-muted/50 transition shadow-inner"
             />
             <Search className="w-5 h-5 text-text-muted absolute left-4 top-5.5" />
@@ -205,7 +216,23 @@ export const MemoryVaultPage: React.FC<MemoryVaultPageProps> = ({
                         <h3 className="text-sm font-semibold text-text-primary">{c.title}</h3>
                       </div>
 
-                      <div className="flex items-center gap-3">
+                      <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+                        {/* Location Tag */}
+                        {c.location && (c.location.city || c.location.display_name) && (
+                          <div className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-medium">
+                            <MapPin className="w-3 h-3" />
+                            <span>{c.location.city || c.location.display_name}</span>
+                          </div>
+                        )}
+
+                        {/* Weather Tag */}
+                        {c.weather && c.weather.condition && (
+                          <div className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-sky-500/10 border border-sky-500/20 text-sky-400 text-xs font-medium">
+                            <Cloud className="w-3 h-3" />
+                            <span>{c.weather.temperature_c ? `${Math.round(c.weather.temperature_c)}°C ` : ''}{c.weather.condition}</span>
+                          </div>
+                        )}
+
                         {c.similarity_score !== undefined && c.similarity_score !== null && (
                           <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-accent-primary/10 border border-accent-primary/20 text-accent-primary text-xs font-medium font-mono">
                             <span>{Math.round(c.similarity_score * 100)}% Match</span>
@@ -240,7 +267,7 @@ export const MemoryVaultPage: React.FC<MemoryVaultPageProps> = ({
                 <div className="space-y-1">
                   <h4 className="text-sm font-semibold text-text-primary">No Matching Reflections Found</h4>
                   <p className="text-xs text-text-muted max-w-md mx-auto">
-                    Try searching for broader keywords like "goals", "decision", "career", or "gratitude". As you write more entries, the vault's semantic recall deepens.
+                    Try searching for broader keywords or cities like "Bengaluru", "goals", "decision", or "gratitude". As you write more entries, the vault's semantic recall deepens.
                   </p>
                 </div>
               </div>

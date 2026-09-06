@@ -20,9 +20,19 @@ router = APIRouter(prefix="/api/save", tags=["save"])
 PUBSUB_TOPIC_NAME = "journal-created"
 
 
+class LocationInput(BaseModel):
+    latitude: Optional[float] = Field(None, ge=-90.0, le=90.0)
+    longitude: Optional[float] = Field(None, ge=-180.0, le=180.0)
+    city: Optional[str] = Field(None, max_length=80)
+    state: Optional[str] = Field(None, max_length=80)
+    country: Optional[str] = Field(None, max_length=80)
+    display_name: Optional[str] = Field(None, max_length=150)
+
+
 class SaveSessionRequest(BaseModel):
     session_id: str = Field(..., description="The ID of the session to summarize and persist")
-    city: Optional[str] = Field(default="San Francisco", description="City for async weather enrichment")
+    city: Optional[str] = Field(default=None, description="City for async weather enrichment")
+    location: Optional[LocationInput] = Field(default=None, description="Structured geolocation metadata")
 
 
 class SaveSessionResponse(BaseModel):
@@ -37,7 +47,7 @@ def publish_journal_created_event(uid: str, journal_id: str, city: str):
     payload = {
         "uid": uid,
         "journalId": journal_id,
-        "city": city or "San Francisco",
+        "city": city or "Bengaluru",
     }
 
     try:
@@ -101,9 +111,15 @@ async def save_session_endpoint(
         f"Insights: {'; '.join(summary.get('key_insights', []))}. "
         f"Actions: {'; '.join(summary.get('action_items', []))}."
     )
+    if body.location and body.location.city:
+        summary_text_for_embedding += f" Location: {body.location.city}, {body.location.country or ''}."
+
     embedding = generate_embedding(summary_text_for_embedding)
 
-    # 3. Execute Atomic Transaction (Journal + Streak + Session-Ended)
+    # 3. Execute Atomic Transaction (Journal + Streak + Session-Ended + Location)
+    location_dict = body.location.model_dump(exclude_none=True) if body.location else None
+    resolved_city = (body.location.city if body.location and body.location.city else body.city) or "Bengaluru"
+
     try:
         journal_id, streak_stats = execute_atomic_session_save(
             uid=uid,
@@ -112,6 +128,8 @@ async def save_session_endpoint(
             messages=messages,
             summary=summary,
             embedding=embedding,
+            location=location_dict,
+            city=resolved_city,
         )
     except Exception as exc:
         logger.error(f"Atomic session save transaction failed for user {uid}: {exc}", exc_info=True)
@@ -121,7 +139,7 @@ async def save_session_endpoint(
         )
 
     # 4. Trigger Async Pub/Sub Weather Enrichment (Non-blocking)
-    publish_journal_created_event(uid=uid, journal_id=journal_id, city=body.city or "San Francisco")
+    publish_journal_created_event(uid=uid, journal_id=journal_id, city=resolved_city)
 
     return SaveSessionResponse(
         journal_id=journal_id,

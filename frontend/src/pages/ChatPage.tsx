@@ -17,6 +17,7 @@ import {
   Heart,
   X,
   LifeBuoy,
+  MapPin,
 } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
 import { JournalMode } from './DashboardPage';
@@ -116,6 +117,42 @@ export const ChatPage: React.FC<ChatPageProps> = ({
   const [showSummaryModal, setShowSummaryModal] = useState(false);
   const [isSavingSession, setIsSavingSession] = useState(false);
   const [sessionSaved, setSessionSaved] = useState(false);
+
+  // Geo-Location State (Unit 19)
+  const [userLocation, setUserLocation] = useState<{
+    latitude?: number;
+    longitude?: number;
+    city: string;
+    country: string;
+    display_name: string;
+  }>({
+    city: 'Bengaluru',
+    country: 'India',
+    display_name: 'Bengaluru, India',
+  });
+
+  // Auto-detect location on mount if available
+  useEffect(() => {
+    if ('geolocation' in navigator) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          const lat = pos.coords.latitude;
+          const lon = pos.coords.longitude;
+          setUserLocation({
+            latitude: lat,
+            longitude: lon,
+            city: 'Local Area',
+            country: 'India',
+            display_name: `GPS: ${lat.toFixed(2)}, ${lon.toFixed(2)}`,
+          });
+        },
+        () => {
+          // Default fallback
+        },
+        { timeout: 4000 }
+      );
+    }
+  }, []);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -267,7 +304,8 @@ export const ChatPage: React.FC<ChatPageProps> = ({
         },
         body: JSON.stringify({
           session_id: sessionId,
-          city: 'San Francisco',
+          city: userLocation.city,
+          location: userLocation,
         }),
       });
 
@@ -320,8 +358,16 @@ export const ChatPage: React.FC<ChatPageProps> = ({
                 <span className="px-2.5 py-0.5 rounded-full bg-accent-primary/10 border border-accent-primary/30 text-accent-primary text-[11px] font-semibold">
                   {mode}
                 </span>
+                {/* Geolocation Tag */}
+                <span
+                  className="hidden sm:inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[10px] font-medium"
+                  title="Session Geolocation & Free Weather Tagging"
+                >
+                  <MapPin className="w-3 h-3 text-emerald-400" />
+                  <span>{userLocation.display_name}</span>
+                </span>
               </div>
-              <p className="text-[11px] text-text-muted">Live Gemini Coaching & Reflection</p>
+              <p className="text-[11px] text-text-muted">Live AI Reflection & Geo-Memory Active</p>
             </div>
           </div>
 

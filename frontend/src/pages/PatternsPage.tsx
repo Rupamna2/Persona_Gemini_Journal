@@ -10,6 +10,7 @@ import {
   Zap,
   Info,
   Loader2,
+  MapPin,
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -39,6 +40,13 @@ interface WeatherCorrelationItem {
   count: number;
 }
 
+interface LocationMoodItem {
+  location: string;
+  avgMood: number;
+  count: number;
+  delta_from_baseline: number;
+}
+
 interface TopicItem {
   name: string;
   value: number;
@@ -55,11 +63,13 @@ interface InsightCardItem {
 interface AnalyticsData {
   mood_trend: MoodTrendItem[];
   mood_vs_weather: WeatherCorrelationItem[];
+  mood_by_location?: LocationMoodItem[];
   topics: TopicItem[];
   insights: InsightCardItem[];
   has_enough_data: boolean;
   total_entries: number;
   weather_enriched_entries?: number;
+  baseline_avg_mood?: number;
 }
 
 export const PatternsPage: React.FC<{
@@ -273,6 +283,66 @@ export const PatternsPage: React.FC<{
               </div>
             </div>
 
+            {/* Location-Mood Happiness Predictor Section */}
+            {data.mood_by_location && data.mood_by_location.length > 0 && (
+              <div className="p-6 rounded-2xl bg-surface border border-border-default space-y-4 shadow-sm">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <div className="w-7 h-7 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
+                        <MapPin className="w-4 h-4" />
+                      </div>
+                      <h3 className="text-sm font-bold text-text-primary">Location-Mood Happiness Predictor</h3>
+                    </div>
+                    <p className="text-xs text-text-muted">Comparing average emotional wellness across journaled cities & regions</p>
+                  </div>
+                  <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-md bg-base border border-border-default text-[11px] font-mono text-text-muted">
+                    <span>Baseline Avg: {data.baseline_avg_mood ?? 7.0}/10</span>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 pt-1">
+                  {data.mood_by_location.map((loc, index) => {
+                    const isPositive = loc.delta_from_baseline >= 0;
+                    return (
+                      <div
+                        key={loc.location || index}
+                        className="p-4 rounded-xl bg-base border border-border-default/80 flex items-center justify-between hover:border-accent-primary/40 transition"
+                      >
+                        <div className="space-y-1 flex-1 min-w-0 pr-3">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-xs font-semibold text-text-primary truncate">
+                              {loc.location}
+                            </span>
+                            {index === 0 && (
+                              <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-500/10 text-amber-400 border border-amber-500/20 uppercase">
+                                Happiest
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-[11px] text-text-muted">
+                            {loc.count} session{loc.count > 1 ? 's' : ''} recorded
+                          </p>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <div className="text-sm font-bold text-text-primary">
+                            {loc.avgMood} <span className="text-[10px] text-text-muted">/10</span>
+                          </div>
+                          <span
+                            className={`text-[10px] font-medium ${
+                              isPositive ? 'text-emerald-400' : 'text-state-danger'
+                            }`}
+                          >
+                            {isPositive ? `+${loc.delta_from_baseline}` : loc.delta_from_baseline} vs avg
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
             {/* Section 2: Topics Breakdown & AI Insight Cards */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               {/* Topics Pie Breakdown */}
@@ -339,6 +409,8 @@ export const PatternsPage: React.FC<{
                         <div className="w-9 h-9 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400 shrink-0 mt-0.5">
                           {insight.type === 'weather' ? (
                             <Sun className="w-5 h-5" />
+                          ) : insight.type === 'location' ? (
+                            <MapPin className="w-5 h-5 text-emerald-400" />
                           ) : (
                             <Zap className="w-5 h-5 text-accent-primary" />
                           )}

@@ -1,5 +1,6 @@
-"""Analytics Agent computing mood-weather correlations, topic breakdowns, and grounded AI insights."""
+"""Analytics Agent computing mood-weather correlations, location-mood happiness, topic breakdowns, and grounded AI insights."""
 
+import re
 import json
 import logging
 from typing import Dict, Any, List, Optional
@@ -11,13 +12,13 @@ from backend.agents.root_agent import FIXED_SECURITY_PREAMBLE
 
 logger = logging.getLogger(__name__)
 
-COLOR_PALETTE = ["#3B82F6", "#10B981", "#F59E0B", "#8B5CF6", "#EC4899", "#06B6D4"]
+COLOR_PALETTE = ["#3B82F6", "#10B981", "#F59E0B", "#8B5CF6", "#EC4899", "#06B6D4", "#14B8A6"]
 
 
 class InsightCard(BaseModel):
     title: str = Field(..., description="Short catchy headline for the behavioral insight")
     description: str = Field(..., description="Grounded natural language finding referencing specific data percentages or scores")
-    type: str = Field(default="general", description="Category: 'weather', 'mode', or 'general'")
+    type: str = Field(default="general", description="Category: 'weather', 'location', 'mode', or 'general'")
 
 
 class PatternAnalysisResult(BaseModel):
@@ -25,11 +26,12 @@ class PatternAnalysisResult(BaseModel):
 
 
 def aggregate_journal_patterns(entries: List[Dict[str, Any]]) -> Dict[str, Any]:
-    """Aggregate raw Firestore journal documents into structured Recharts metrics."""
+    """Aggregate raw Firestore journal documents into structured Recharts metrics including geolocation."""
     if not entries:
         return {
             "mood_trend": [],
             "mood_vs_weather": [],
+            "mood_by_location": [],
             "topics": [],
             "has_enough_data": False,
             "total_entries": 0,
@@ -38,6 +40,9 @@ def aggregate_journal_patterns(entries: List[Dict[str, Any]]) -> Dict[str, Any]:
     # 1. Mood & Energy Trend (sorted chronologically)
     sorted_entries = sorted(entries, key=lambda e: e.get("createdAt", ""))
     mood_trend = []
+    total_mood_sum = 0.0
+    valid_mood_count = 0
+
     for idx, entry in enumerate(sorted_entries, start=1):
         summary = entry.get("summary", {}) or {}
         mood_score = summary.get("mood_score")
@@ -49,6 +54,9 @@ def aggregate_journal_patterns(entries: List[Dict[str, Any]]) -> Dict[str, Any]:
         else:
             mood_score = 7.0
 
+        total_mood_sum += mood_score
+        valid_mood_count += 1
+
         energy_str = summary.get("energy_level", "Medium Energy")
         energy_val = 8.5 if "High" in str(energy_str) else (5.5 if "Low" in str(energy_str) else 7.0)
 
@@ -59,7 +67,9 @@ def aggregate_journal_patterns(entries: List[Dict[str, Any]]) -> Dict[str, Any]:
             "energy": round(energy_val, 1),
         })
 
-    # 2. Mood vs Weather Aggregation
+    baseline_avg_mood = (total_mood_sum / valid_mood_count) if valid_mood_count > 0 else 7.0
+
+    # 2. Mood vs Weather Aggregation (Open-Meteo & NOAA GSOD)
     weather_groups: Dict[str, List[float]] = {}
     valid_weather_entries = 0
 
@@ -96,7 +106,36 @@ def aggregate_journal_patterns(entries: List[Dict[str, Any]]) -> Dict[str, Any]:
             "count": len(scores),
         })
 
-    # 3. Topic & Theme Distribution
+    # 3. Geo-Location Mood Happiness Predictor (Group by City / Region)
+    location_groups: Dict[str, List[float]] = {}
+    for entry in entries:
+        summary = entry.get("summary", {}) or {}
+        mood_score = summary.get("mood_score")
+        location = entry.get("location")
+
+        if mood_score is not None and location and isinstance(location, dict):
+            try:
+                score = float(mood_score)
+                city = location.get("city") or location.get("display_name") or "Local"
+                city_name = city.split(",")[0].strip().title()
+                location_groups.setdefault(city_name, []).append(score)
+            except (ValueError, TypeError):
+                continue
+
+    mood_by_location = []
+    for loc_name, scores in location_groups.items():
+        loc_avg = sum(scores) / len(scores) if scores else 0.0
+        mood_by_location.append({
+            "location": loc_name,
+            "avgMood": round(loc_avg, 1),
+            "count": len(scores),
+            "delta_from_baseline": round(loc_avg - baseline_avg_mood, 1),
+        })
+
+    # Sort locations by happiness
+    mood_by_location.sort(key=lambda x: x["avgMood"], reverse=True)
+
+    # 4. Topic & Theme Distribution
     topic_counts: Dict[str, int] = {}
     for entry in entries:
         summary = entry.get("summary", {}) or {}
@@ -118,24 +157,27 @@ def aggregate_journal_patterns(entries: List[Dict[str, Any]]) -> Dict[str, Any]:
             "color": COLOR_PALETTE[idx % len(COLOR_PALETTE)],
         })
 
-    has_enough = len(entries) >= 2 and valid_weather_entries >= 1
+    has_enough = len(entries) >= 2
 
     return {
         "mood_trend": mood_trend,
         "mood_vs_weather": mood_vs_weather,
+        "mood_by_location": mood_by_location,
         "topics": topics_list,
         "has_enough_data": has_enough,
         "total_entries": len(entries),
         "weather_enriched_entries": valid_weather_entries,
+        "baseline_avg_mood": round(baseline_avg_mood, 1),
     }
 
 
 def generate_pattern_insights(aggregated_data: Dict[str, Any]) -> List[Dict[str, Any]]:
-    """Generate 2-3 grounded natural language insight cards via Gemini."""
+    """Generate 2-3 grounded natural language insight cards via AI."""
     if not aggregated_data.get("has_enough_data"):
         return []
 
     mood_weather_summary = json.dumps(aggregated_data.get("mood_vs_weather", []))
+    mood_location_summary = json.dumps(aggregated_data.get("mood_by_location", []))
     topics_summary = json.dumps(aggregated_data.get("topics", []))
     total_entries = aggregated_data.get("total_entries", 0)
 
@@ -147,12 +189,13 @@ Every finding MUST directly cite the numbers in the data. Do NOT hallucinate pat
 Metrics Data:
 - Total Journal Entries: {total_entries}
 - Mood by Weather Condition: {mood_weather_summary}
+- Mood by Location (Happiness Tracker): {mood_location_summary}
 - Focus Topics Distribution: {topics_summary}
 
 Format each insight card with:
 - title: concise, positive, actionable header
 - description: 1-2 sentence evidence-grounded summary referencing specific scores/percentages
-- type: 'weather', 'mode', or 'general'
+- type: 'weather', 'location', 'mode', or 'general'
 """
 
     system_instruction = f"""{FIXED_SECURITY_PREAMBLE}
@@ -166,28 +209,43 @@ You are an expert behavioural analytics agent. You produce strictly grounded JSO
             response_mime_type="application/json",
             temperature=0.3,
         )
-        data = json.loads(response_text)
-        return data.get("insights", [])
+        match = re.search(r"```(?:json)?\s*([\s\S]*?)\s*```", response_text.strip())
+        raw = match.group(1).strip() if match else response_text.strip()
+        data = json.loads(raw)
+        insights = data.get("insights", [])
+        if insights:
+            return insights
     except Exception as exc:
         logger.warning(f"AI insight generation failed: {exc}. Using deterministic grounded fallback.")
-        # Fallback to deterministic grounded insights
-        fallback_insights = []
-        weather_data = aggregated_data.get("mood_vs_weather", [])
-        if weather_data:
-            best_weather = max(weather_data, key=lambda x: x["avgMood"])
-            fallback_insights.append({
-                "title": f"{best_weather['condition']} Energy Correlation",
-                "description": f"Your average mood peaks at {best_weather['avgMood']}/10 during {best_weather['condition']} conditions across {best_weather['count']} recorded sessions.",
-                "type": "weather",
-            })
 
-        topics = aggregated_data.get("topics", [])
-        if topics:
-            top_topic = topics[0]
-            fallback_insights.append({
-                "title": f"Primary Focus: {top_topic['name']}",
-                "description": f"'{top_topic['name']}' represents {top_topic['value']}% of your recent journal reflections.",
-                "type": "general",
-            })
+    # Fallback to deterministic grounded insights
+    fallback_insights = []
+    location_data = aggregated_data.get("mood_by_location", [])
+    if location_data:
+        top_loc = location_data[0]
+        delta_str = f"+{top_loc['delta_from_baseline']}" if top_loc['delta_from_baseline'] > 0 else f"{top_loc['delta_from_baseline']}"
+        fallback_insights.append({
+            "title": f"Peak Well-being in {top_loc['location']}",
+            "description": f"You experience your highest happiness score ({top_loc['avgMood']}/10) when journaling from {top_loc['location']} ({delta_str} vs your overall baseline).",
+            "type": "location",
+        })
 
-        return fallback_insights
+    weather_data = aggregated_data.get("mood_vs_weather", [])
+    if weather_data:
+        best_weather = max(weather_data, key=lambda x: x["avgMood"])
+        fallback_insights.append({
+            "title": f"{best_weather['condition']} Mood Alignment",
+            "description": f"Your average mood reaches {best_weather['avgMood']}/10 during {best_weather['condition']} conditions across {best_weather['count']} recorded sessions.",
+            "type": "weather",
+        })
+
+    topics = aggregated_data.get("topics", [])
+    if topics and len(fallback_insights) < 3:
+        top_topic = topics[0]
+        fallback_insights.append({
+            "title": f"Primary Focus: {top_topic['name']}",
+            "description": f"'{top_topic['name']}' represents {top_topic['value']}% of your recent journal reflections.",
+            "type": "general",
+        })
+
+    return fallback_insights
