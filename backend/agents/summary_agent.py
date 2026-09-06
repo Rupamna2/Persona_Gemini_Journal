@@ -1,5 +1,6 @@
 """Summary agent extracting structured end-of-session synthesis and insights."""
 
+import re
 import json
 import logging
 from typing import Dict, Any, List
@@ -38,6 +39,17 @@ DEFAULT_FALLBACK_SUMMARY: Dict[str, Any] = {
 }
 
 
+def clean_json_str(raw: str) -> str:
+    """Extract clean JSON substring from model output, stripping markdown fences if present."""
+    if not raw:
+        return ""
+    cleaned = raw.strip()
+    match = re.search(r"```(?:json)?\s*([\s\S]*?)\s*```", cleaned)
+    if match:
+        return match.group(1).strip()
+    return cleaned
+
+
 def generate_session_summary(transcript_messages: List[Dict[str, Any]]) -> Dict[str, Any]:
     """Generate structured end-of-session summary from transcript turns."""
     formatted_transcript = ""
@@ -50,7 +62,7 @@ def generate_session_summary(transcript_messages: List[Dict[str, Any]]) -> Dict[
         "Generate a structured, insightful summary of this personal journal session.\n\n"
         "TRANSCRIPT:\n"
         f"{formatted_transcript}\n\n"
-        "Provide a JSON response matching the following schema:\n"
+        "Provide a pure JSON response matching the following schema:\n"
         "{\n"
         '  "title": string,\n'
         '  "topic": string,\n'
@@ -75,7 +87,8 @@ def generate_session_summary(transcript_messages: List[Dict[str, Any]]) -> Dict[
             temperature=0.3,
         )
 
-        parsed = json.loads(raw_output)
+        cleaned_json = clean_json_str(raw_output)
+        parsed = json.loads(cleaned_json)
         validated = SessionSummary(**parsed)
         return validated.model_dump()
     except Exception as exc:

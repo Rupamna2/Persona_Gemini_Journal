@@ -108,14 +108,16 @@ backend/agents/
                          with mood_analyzer and the save pipeline
     journal_coach.py     Active conversation coach; one instruction
                          template per mode
-    mood_analyzer.py     Per-turn structured extraction — runs on
-                         gemini-2.5-flash-lite
-    summary_agent.py     End-of-session structured JSON summary
-                         (schema-validated) — gemini-3.7-flash
+    mood_analyzer.py     Per-turn structured extraction (Gemini + NVIDIA failover)
+    summary_agent.py     End-of-session structured JSON summary (Gemini + NVIDIA 120B/11B)
     memory_agent.py      RAG: embed query → Firestore vector KNN →
                          answer with citations to specific entries
     analytics_agent.py   (Phase 3) BigQuery weather correlation +
                          natural-language insight generation
+    model_utils.py       Dual-Provider Resilient Multi-Model Ladder:
+                         - Primary: Google Gemini (gemini-3.7-flash, gemini-3.6-flash, gemini-flash-latest)
+                         - Failover: NVIDIA NIM (meta/llama-3.2-11b-vision-instruct, nvidia/nemotron-3-super-120b-a12b, nvidia/nemotron-3.5-lightning-30b)
+                         - Fallback: Grounded deterministic structured offline fallback
 ```
 
 **Instruction precedence** (fixed, non-negotiable — see also

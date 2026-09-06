@@ -1,5 +1,6 @@
 """Mood and emotional extraction agent using structured JSON output."""
 
+import re
 import json
 import logging
 from typing import Dict, Any, List
@@ -24,13 +25,24 @@ DEFAULT_FALLBACK_MOOD: Dict[str, Any] = {
 }
 
 
+def clean_json_str(raw: str) -> str:
+    """Extract clean JSON substring from model output, stripping markdown fences if present."""
+    if not raw:
+        return ""
+    cleaned = raw.strip()
+    match = re.search(r"```(?:json)?\s*([\s\S]*?)\s*```", cleaned)
+    if match:
+        return match.group(1).strip()
+    return cleaned
+
+
 def analyze_turn_mood(user_message: str, assistant_reply: str) -> Dict[str, Any]:
     """Analyze a single conversation turn and return structured emotional metadata."""
     prompt = (
         f"Analyze the emotional tone, energy level, mood score (1.0 to 10.0), and key topics of this journal exchange.\n\n"
         f"USER MESSAGE:\n{user_message}\n\n"
         f"ASSISTANT REPLY:\n{assistant_reply}\n\n"
-        f"Respond in JSON matching the schema:\n"
+        f"Respond in pure JSON matching the schema:\n"
         f'{{"mood_label": string, "mood_score": float, "energy_level": string, "topics": [string]}}'
     )
 
@@ -43,7 +55,8 @@ def analyze_turn_mood(user_message: str, assistant_reply: str) -> Dict[str, Any]
             temperature=0.2,
         )
 
-        parsed = json.loads(raw_output)
+        cleaned_json = clean_json_str(raw_output)
+        parsed = json.loads(cleaned_json)
         # Validate through Pydantic
         validated = MoodExtraction(**parsed)
         return validated.model_dump()
