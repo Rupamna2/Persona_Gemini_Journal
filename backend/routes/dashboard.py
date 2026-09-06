@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from google.cloud import firestore
 
-from backend.auth import verify_token
+from backend.auth import verify_token, get_uid
 from backend.services.user_service import get_firestore_client
 from backend.services.rate_limit import get_subscription_status
 
@@ -71,10 +71,10 @@ def mood_score_to_emoji(score: float) -> str:
 
 @router.get("", response_model=DashboardDataResponse)
 async def get_dashboard_metrics(
-    current_user: Dict[str, Any] = Depends(verify_token),
+    current_user: Any = Depends(verify_token),
 ) -> DashboardDataResponse:
     """Fetch live aggregated dashboard metrics for the authenticated user."""
-    uid = current_user.get("uid")
+    uid = get_uid(current_user)
     if not uid:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

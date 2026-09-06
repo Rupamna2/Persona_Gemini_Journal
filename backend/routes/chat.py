@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 from google.cloud import firestore
 
-from backend.auth import verify_token
+from backend.auth import verify_token, get_uid
 from backend.services.user_service import get_firestore_client
 from backend.agents.root_agent import run_journal_agent_turn, check_grounding_safety
 from backend.services.rate_limit import enforce_and_increment
@@ -68,7 +68,7 @@ async def post_chat_message(
     Executes root agent turn, persists conversation to Firestore session,
     and returns assistant reply and extracted mood analysis.
     """
-    uid = current_user.get("uid")
+    uid = get_uid(current_user)
     if not uid:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

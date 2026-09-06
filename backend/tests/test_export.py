@@ -82,6 +82,7 @@ def test_export_generates_valid_excel_workbook():
     mock_db = MagicMock()
     mock_query = MagicMock()
     mock_query.stream.return_value = [mock_doc1, mock_doc2]
+    mock_query.limit.return_value = mock_query
 
     mock_journals_coll = MagicMock()
     mock_journals_coll.order_by.return_value = mock_query
@@ -100,7 +101,7 @@ def test_export_generates_valid_excel_workbook():
             # Load streamed bytes into openpyxl
             wb = openpyxl.load_workbook(io.BytesIO(res.content))
             ws = wb.active
-            assert ws.title == "Personal Reflections"
+            assert ws.title == "Journal Reflections"
 
             # Check header row
             header_vals = [ws.cell(row=1, column=c).value for c in range(1, len(HEADER_COLUMNS) + 1)]

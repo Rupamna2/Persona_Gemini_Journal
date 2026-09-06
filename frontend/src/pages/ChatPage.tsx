@@ -161,8 +161,7 @@ export const ChatPage: React.FC<ChatPageProps> = ({
     const fetchQuota = async () => {
       try {
         const idToken = user ? await user.getIdToken() : '';
-        const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
-        const res = await fetch(`${apiBaseUrl}/api/subscription/status`, {
+        const res = await fetch('/api/subscription/status', {
           headers: { Authorization: `Bearer ${idToken}` },
         });
         if (res.ok) {
@@ -192,9 +191,8 @@ export const ChatPage: React.FC<ChatPageProps> = ({
 
     try {
       const idToken = user ? await user.getIdToken() : '';
-      const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
 
-      const response = await fetch(`${apiBaseUrl}/api/chat`, {
+      const response = await fetch('/api/chat', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -213,27 +211,29 @@ export const ChatPage: React.FC<ChatPageProps> = ({
         setLastFailedMessage(messageText);
         let detailMsg = "You've reached your free trial limit of 10 messages for this period.";
         try {
-          const errJson = await response.json();
-          if (errJson.detail?.message) detailMsg = errJson.detail.message;
-        } catch {}
+          const errData = await response.json();
+          if (errData.detail) detailMsg = errData.detail;
+        } catch {
+          // ignore parsing failure
+        }
         setErrorMessage(detailMsg);
         return;
       }
 
       if (!response.ok) {
-        let errDetail = 'Failed to get response from Gemini agent.';
+        let errDetail = 'Failed to get coach response.';
         try {
           const errJson = await response.json();
           if (errJson.detail) errDetail = errJson.detail;
         } catch {
-          // ignore json parse error
+          // ignore parsing error
         }
         throw new Error(errDetail);
       }
 
       const data = await response.json();
 
-      // Update live quota countdown directly from response
+      // Refresh live quota if returned in payload
       if (data.quota) {
         setQuota({
           tier: data.quota.tier,
@@ -285,7 +285,7 @@ export const ChatPage: React.FC<ChatPageProps> = ({
     sendMessageToApi(trimmed);
   };
 
-  const handleRetry = () => {
+  const handleRetryLastMessage = () => {
     if (!lastFailedMessage || isTyping) return;
     sendMessageToApi(lastFailedMessage);
   };
@@ -294,9 +294,8 @@ export const ChatPage: React.FC<ChatPageProps> = ({
     setIsSavingSession(true);
     try {
       const idToken = user ? await user.getIdToken() : '';
-      const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
 
-      const response = await fetch(`${apiBaseUrl}/api/save`, {
+      const response = await fetch('/api/save', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -475,7 +474,7 @@ export const ChatPage: React.FC<ChatPageProps> = ({
             {lastFailedMessage && (
               <button
                 type="button"
-                onClick={handleRetry}
+                onClick={handleRetryLastMessage}
                 className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-state-error hover:bg-red-600 text-white font-semibold transition cursor-pointer"
               >
                 <RefreshCw className="w-3.5 h-3.5" />

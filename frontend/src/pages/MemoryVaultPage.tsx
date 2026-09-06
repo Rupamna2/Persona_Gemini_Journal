@@ -57,9 +57,8 @@ export const MemoryVaultPage: React.FC<MemoryVaultPageProps> = ({
 
     try {
       const idToken = user ? await user.getIdToken() : '';
-      const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
 
-      const res = await fetch(`${apiBaseUrl}/api/memory/search?q=${encodeURIComponent(trimmed)}`, {
+      const res = await fetch(`/api/memory/search?q=${encodeURIComponent(trimmed)}`, {
         headers: {
           Authorization: `Bearer ${idToken}`,
         },

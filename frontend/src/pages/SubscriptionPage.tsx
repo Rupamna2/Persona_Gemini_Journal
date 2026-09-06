@@ -34,9 +34,8 @@ export const SubscriptionPage: React.FC<SubscriptionPageProps> = ({ onBackToDash
     try {
       setLoading(true);
       const idToken = user ? await user.getIdToken() : '';
-      const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
 
-      const response = await fetch(`${apiBaseUrl}/api/subscription/status`, {
+      const response = await fetch('/api/subscription/status', {
         headers: {
           'Authorization': `Bearer ${idToken}`,
         },

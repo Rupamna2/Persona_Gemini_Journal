@@ -7,7 +7,7 @@ from typing import Dict, Any, Optional
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 
-from backend.auth import verify_token
+from backend.auth import verify_token, get_uid
 from backend.services.user_service import get_firestore_client
 from backend.agents.summary_agent import generate_session_summary
 from backend.services.embeddings import generate_embedding
@@ -43,7 +43,7 @@ class SaveSessionResponse(BaseModel):
 
 def publish_journal_created_event(uid: str, journal_id: str, city: str):
     """Publish journal-created event to Cloud Pub/Sub asynchronously (non-blocking)."""
-    project_id = os.environ.get("GOOGLE_CLOUD_PROJECT", "avid-pentameter-mr6mz")
+    project_id = os.environ.get("GOOGLE_CLOUD_PROJECT", "personal-gemini-journal-507113")
     payload = {
         "uid": uid,
         "journalId": journal_id,
@@ -65,10 +65,10 @@ def publish_journal_created_event(uid: str, journal_id: str, city: str):
 @router.post("", response_model=SaveSessionResponse)
 async def save_session_endpoint(
     body: SaveSessionRequest,
-    current_user: Dict[str, Any] = Depends(verify_token),
+    current_user: Any = Depends(verify_token),
 ) -> SaveSessionResponse:
     """End and persist a journal session into a permanent journal entry with embeddings and streaks."""
-    uid = current_user.get("uid")
+    uid = get_uid(current_user)
     if not uid:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

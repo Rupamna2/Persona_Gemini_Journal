@@ -43,8 +43,18 @@ def test_subscriber_processes_valid_message_and_patches_firestore():
     mock_user_doc = MagicMock()
     mock_user_doc.collection.return_value.document.return_value = mock_journal_ref
     mock_db.collection.return_value.document.return_value = mock_user_doc
+    mock_weather = {
+        "condition": "Partly Cloudy",
+        "temperature_c": 18.5,
+        "humidity": 65,
+        "weather_code": 2,
+        "station": "Seattle Open-Meteo Station",
+        "fetched_at": "2026-09-06T12:00:00Z",
+        "source": "open-meteo-free",
+    }
 
-    with patch("backend.services.weather_enrichment.get_firestore_client", return_value=mock_db):
+    with patch("backend.services.weather_enrichment.fetch_open_meteo_weather", return_value=mock_weather), \
+         patch("backend.services.weather_enrichment.get_firestore_client", return_value=mock_db):
         res = client.post(
             "/pubsub/push",
             headers={"Authorization": "Bearer test-valid-pubsub-jwt-123"},

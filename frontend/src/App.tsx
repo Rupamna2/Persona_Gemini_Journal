@@ -63,7 +63,7 @@ function AuthenticatedApp() {
   const [activeChatMode, setActiveChatMode] = useState<JournalMode>('FreeWrite');
   const [vaultInitialQuery, setVaultInitialQuery] = useState<string>('');
 
-  if (loading) {
+  if (loading || (user && hasMasterPrompt === null)) {
     return (
       <div className="min-h-screen bg-base flex items-center justify-center">
         <div className="w-8 h-8 border-2 border-accent-primary/30 border-t-accent-primary rounded-full animate-spin" />

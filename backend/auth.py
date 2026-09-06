@@ -9,7 +9,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 # Initialize default Firebase Admin SDK app if not already initialized
 if not firebase_admin._apps:
-    project_id = os.environ.get("FIREBASE_PROJECT_ID", "avid-pentameter-mr6mz")
+    project_id = os.environ.get("GOOGLE_CLOUD_PROJECT") or os.environ.get("FIREBASE_PROJECT_ID") or "personal-gemini-journal-507113"
     try:
         firebase_admin.initialize_app(options={"projectId": project_id})
     except Exception:
@@ -52,3 +52,10 @@ async def verify_token(
             detail=f"Invalid or expired token: {str(e)}",
             headers={"WWW-Authenticate": "Bearer"},
         )
+
+
+def get_uid(user_or_uid: Any) -> str:
+    """Helper to safely extract UID whether dependency returns a string or a dict."""
+    if isinstance(user_or_uid, dict):
+        return str(user_or_uid.get("uid") or "")
+    return str(user_or_uid or "")

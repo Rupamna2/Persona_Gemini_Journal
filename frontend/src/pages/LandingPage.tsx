@@ -39,7 +39,7 @@ export const LandingPage: React.FC = () => {
                 <p className="leading-relaxed text-text-muted">{error}</p>
                 {error.includes('Authorized Domains') && (
                   <a
-                    href="https://console.firebase.google.com/project/avid-pentameter-mr6mz/authentication/settings"
+                    href="https://console.firebase.google.com/project/personal-gemini-journal-507113/authentication/settings"
                     target="_blank"
                     rel="noreferrer"
                     className="inline-block mt-2 text-accent-primary hover:underline font-medium text-[11px]"

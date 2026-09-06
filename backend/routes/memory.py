@@ -5,7 +5,7 @@ from typing import Dict, Any, List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel
 
-from backend.auth import verify_token
+from backend.auth import verify_token, get_uid
 from backend.services.user_service import get_firestore_client
 from backend.agents.memory_agent import run_memory_search
 
@@ -31,10 +31,10 @@ class MemorySearchResponse(BaseModel):
 @router.get("/search", response_model=MemorySearchResponse)
 async def search_memory_vault(
     q: str = Query(..., description="Natural language search query over personal journal history"),
-    current_user: Dict[str, Any] = Depends(verify_token),
+    current_user: Any = Depends(verify_token),
 ) -> MemorySearchResponse:
     """Execute natural-language semantic vector search over past journal entries with grounded citations."""
-    uid = current_user.get("uid")
+    uid = get_uid(current_user)
     if not uid:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

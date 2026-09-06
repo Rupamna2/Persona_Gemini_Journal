@@ -1,17 +1,16 @@
-"""Excel export route generating in-memory .xlsx workbooks of user journal history."""
+"""Excel export route endpoint generating styled, in-memory .xlsx files with zero disk footprint."""
 
 import io
 import logging
 from datetime import datetime, timezone, timedelta
-from typing import Dict, Any, Optional
+from typing import List, Dict, Any
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import StreamingResponse
-from google.cloud import firestore
 import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
 
-from backend.auth import verify_token
+from backend.auth import verify_token, get_uid
 from backend.services.user_service import get_firestore_client
 
 logger = logging.getLogger(__name__)
@@ -31,56 +30,50 @@ HEADER_COLUMNS = [
 ]
 
 
-def _parse_iso_date(val: Optional[str]) -> Optional[datetime]:
-    if not val:
-        return None
-    try:
-        if val.endswith("Z"):
-            val = val[:-1] + "+00:00"
-        return datetime.fromisoformat(val)
-    except Exception:
-        return None
-
-
-def generate_journal_workbook(entries: list[Dict[str, Any]]) -> io.BytesIO:
-    """Build an in-memory openpyxl Workbook populated with journal entries."""
+def build_excel_workbook(entries: List[Dict[str, Any]]) -> io.BytesIO:
+    """Build and style an in-memory openpyxl Workbook from journal documents."""
     wb = openpyxl.Workbook()
     ws = wb.active
-    ws.title = "Personal Reflections"
+    ws.title = "Journal Reflections"
 
     # Ensure grid lines are visible
     ws.views.sheetView[0].showGridLines = True
 
-    # Styling definitions
+    # Dark-themed modern header styling
     header_fill = PatternFill(start_color="1E293B", end_color="1E293B", fill_type="solid")
-    header_font = Font(name="Calibri", size=11, bold=True, color="FFFFFF")
-    header_alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+    header_font = Font(name="Arial", size=11, bold=True, color="FFFFFF")
+    header_border = Border(
+        bottom=Side(style="medium", color="3B82F6"),
+        top=Side(style="thin", color="334155"),
+        left=Side(style="thin", color="334155"),
+        right=Side(style="thin", color="334155"),
+    )
 
-    data_font = Font(name="Calibri", size=10)
-    data_alignment = Alignment(vertical="top", wrap_text=True)
-    center_alignment = Alignment(horizontal="center", vertical="top")
-
-    thin_border_side = Side(border_style="thin", color="E2E8F0")
-    border = Border(left=thin_border_side, right=thin_border_side, top=thin_border_side, bottom=thin_border_side)
-
-    # 1. Write Header Row
     ws.append(HEADER_COLUMNS)
-    ws.row_dimensions[1].height = 28
 
     for col_num in range(1, len(HEADER_COLUMNS) + 1):
         cell = ws.cell(row=1, column=col_num)
         cell.fill = header_fill
         cell.font = header_font
-        cell.alignment = header_alignment
-        cell.border = border
+        cell.border = header_border
+        cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
 
-    # 2. Write Data Rows
+    # Style data rows
+    regular_font = Font(name="Arial", size=10, color="0F172A")
+    alt_fill = PatternFill(start_color="F8FAFC", end_color="F8FAFC", fill_type="solid")
+    thin_border = Border(
+        bottom=Side(style="thin", color="E2E8F0"),
+        top=Side(style="thin", color="E2E8F0"),
+        left=Side(style="thin", color="E2E8F0"),
+        right=Side(style="thin", color="E2E8F0"),
+    )
+
     for row_idx, entry in enumerate(entries, start=2):
-        summary_dict = entry.get("summary", {}) or {}
+        summary_dict = entry.get("summary") or {}
         insights = summary_dict.get("key_insights", [])
         actions = summary_dict.get("action_items", [])
-        insights_str = "\n".join(f"• {i}" for i in insights) if insights else ""
-        actions_str = "\n".join(f"• {a}" for a in actions) if actions else ""
+        insights_str = "\n".join(f"• {i}" for i in insights) if isinstance(insights, list) and insights else str(insights or "")
+        actions_str = "\n".join(f"• {a}" for a in actions) if isinstance(actions, list) and actions else str(actions or "")
 
         mood_score = summary_dict.get("mood_score")
         if mood_score is not None:
@@ -90,36 +83,38 @@ def generate_journal_workbook(entries: list[Dict[str, Any]]) -> io.BytesIO:
                 pass
 
         row_values = [
-            entry.get("journalId", ""),
+            entry.get("id", "") or entry.get("journalId", ""),
             entry.get("date", ""),
-            entry.get("mode", ""),
-            entry.get("title", "Journal Reflection"),
+            entry.get("mode", "FreeWrite"),
+            entry.get("title") or summary_dict.get("title") or "Journal Reflection",
             mood_score if mood_score is not None else "",
             summary_dict.get("topic", ""),
             insights_str,
             actions_str,
             entry.get("createdAt", ""),
         ]
-
         ws.append(row_values)
-        ws.row_dimensions[row_idx].height = 22 if not (insights_str or actions_str) else 36
 
-        for col_num in range(1, len(row_values) + 1):
+        # Apply cell styling
+        for col_num in range(1, len(HEADER_COLUMNS) + 1):
             cell = ws.cell(row=row_idx, column=col_num)
-            cell.font = data_font
-            cell.border = border
-            if col_num in (2, 3, 5):  # Date, Mode, Score
-                cell.alignment = center_alignment
-            else:
-                cell.alignment = data_alignment
+            cell.font = regular_font
+            cell.border = thin_border
+            if row_idx % 2 == 1:
+                cell.fill = alt_fill
 
-    # 3. Column Width Auto-Fitting
+            if col_num in (1, 2, 3, 5, 9):
+                cell.alignment = Alignment(horizontal="center", vertical="top")
+            else:
+                cell.alignment = Alignment(horizontal="left", vertical="top", wrap_text=True)
+
+    # Auto-calculate column widths
     min_widths = {1: 16, 2: 14, 3: 16, 4: 28, 5: 14, 6: 22, 7: 35, 8: 30, 9: 24}
     for col_idx in range(1, len(HEADER_COLUMNS) + 1):
         col_letter = get_column_letter(col_idx)
         ws.column_dimensions[col_letter].width = min_widths.get(col_idx, 20)
 
-    # 4. Stream to in-memory bytes buffer
+    # Save to in-memory bytes buffer
     buffer = io.BytesIO()
     wb.save(buffer)
     buffer.seek(0)
@@ -129,10 +124,10 @@ def generate_journal_workbook(entries: list[Dict[str, Any]]) -> io.BytesIO:
 @router.get("", response_class=StreamingResponse)
 async def export_journals_excel(
     range: str = Query("all", description="Date range for export: 'weekly', 'monthly', or 'all'"),
-    current_user: Dict[str, Any] = Depends(verify_token),
+    current_user: Any = Depends(verify_token),
 ) -> StreamingResponse:
     """Generate and stream an in-memory .xlsx workbook of the user's journal entries."""
-    uid = current_user.get("uid")
+    uid = get_uid(current_user)
     if not uid:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -143,55 +138,50 @@ async def export_journals_excel(
     if range_clean not in ("weekly", "monthly", "all"):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid range parameter. Expected 'weekly', 'monthly', or 'all'.",
+            detail="Invalid range parameter. Expected 'weekly', 'monthly', or 'all'",
         )
 
     db = get_firestore_client()
-    now_utc = datetime.now(timezone.utc)
+    journals_ref = db.collection("users").document(uid).collection("journals")
+    docs = journals_ref.order_by("createdAt", direction="DESCENDING").limit(500).stream()
 
-    # 1. Fetch user's journals
-    try:
-        journals_ref = db.collection("users").document(uid).collection("journals")
-        query = journals_ref.order_by("createdAt", direction=firestore.Query.DESCENDING)
-        docs = list(query.stream())
-    except Exception as exc:
-        logger.error(f"Failed to fetch journals for export (user: {uid}): {exc}")
-        docs = []
+    entries = []
+    now = datetime.now(timezone.utc)
 
-    # 2. Filter entries by requested time range
-    filtered_entries = []
     for doc in docs:
-        data = doc.to_dict() or {}
-        data["journalId"] = data.get("journalId", doc.id)
-
-        if range_clean == "all":
-            filtered_entries.append(data)
-            continue
-
-        created_dt = _parse_iso_date(data.get("createdAt"))
-        if not created_dt:
-            # Fall back to date string check or include
-            filtered_entries.append(data)
-            continue
+        data = doc.to_dict()
+        data["id"] = doc.id
 
         if range_clean == "weekly":
-            if created_dt >= now_utc - timedelta(days=7):
-                filtered_entries.append(data)
+            created_at_str = data.get("createdAt")
+            if created_at_str:
+                try:
+                    dt = datetime.fromisoformat(created_at_str.replace("Z", "+00:00"))
+                    if (now - dt) > timedelta(days=7):
+                        continue
+                except ValueError:
+                    pass
         elif range_clean == "monthly":
-            if created_dt >= now_utc - timedelta(days=30):
-                filtered_entries.append(data)
+            created_at_str = data.get("createdAt")
+            if created_at_str:
+                try:
+                    dt = datetime.fromisoformat(created_at_str.replace("Z", "+00:00"))
+                    if (now - dt) > timedelta(days=30):
+                        continue
+                except ValueError:
+                    pass
 
-    # 3. Generate in-memory Excel workbook stream
-    buffer = generate_journal_workbook(filtered_entries)
+        entries.append(data)
 
-    filename_date = now_utc.strftime("%Y%m%d")
-    filename = f"gemini_journal_export_{range_clean}_{filename_date}.xlsx"
+    excel_buffer = build_excel_workbook(entries)
+    today_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    filename = f"journal_export_{range_clean}_{today_str}.xlsx"
 
     return StreamingResponse(
-        buffer,
+        excel_buffer,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={
             "Content-Disposition": f'attachment; filename="{filename}"',
-            "Access-Control-Expose-Headers": "Content-Disposition",
+            "Cache-Control": "no-cache, no-store, must-revalidate",
         },
     )

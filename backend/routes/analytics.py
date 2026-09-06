@@ -5,7 +5,7 @@ from typing import Dict, Any, List
 from fastapi import APIRouter, Depends, HTTPException, status
 from google.cloud import firestore
 
-from backend.auth import verify_token
+from backend.auth import verify_token, get_uid
 from backend.services.user_service import get_firestore_client
 from backend.agents.analytics_agent import aggregate_journal_patterns, generate_pattern_insights
 
@@ -16,10 +16,10 @@ router = APIRouter(prefix="/api/analytics", tags=["analytics"])
 
 @router.get("/patterns")
 async def get_life_pattern_analytics(
-    current_user: Dict[str, Any] = Depends(verify_token),
+    current_user: Any = Depends(verify_token),
 ) -> Dict[str, Any]:
     """Retrieve mood trends, weather correlations, topic breakdowns, and AI insight cards."""
-    uid = current_user.get("uid")
+    uid = get_uid(current_user)
     if not uid:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

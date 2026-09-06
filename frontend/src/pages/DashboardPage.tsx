@@ -97,9 +97,8 @@ export const DashboardPage: React.FC<DashboardProps> = ({
     try {
       setExportingRange(range);
       const idToken = user ? await user.getIdToken() : '';
-      const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
 
-      const res = await fetch(`${apiBaseUrl}/api/export?range=${range}`, {
+      const res = await fetch(`/api/export?range=${range}`, {
         headers: {
           Authorization: `Bearer ${idToken}`,
         },
@@ -129,9 +128,8 @@ export const DashboardPage: React.FC<DashboardProps> = ({
     try {
       setLoading(true);
       const idToken = user ? await user.getIdToken() : '';
-      const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
 
-      const response = await fetch(`${apiBaseUrl}/api/dashboard`, {
+      const response = await fetch('/api/dashboard', {
         headers: {
           'Authorization': `Bearer ${idToken}`,
         },

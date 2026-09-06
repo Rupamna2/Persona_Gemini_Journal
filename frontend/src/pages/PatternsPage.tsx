@@ -87,9 +87,8 @@ export const PatternsPage: React.FC<{
         setLoading(true);
         setError(null);
         const idToken = user ? await user.getIdToken() : '';
-        const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
 
-        const res = await fetch(`${apiBaseUrl}/api/analytics/patterns`, {
+        const res = await fetch('/api/analytics/patterns', {
           headers: {
             Authorization: `Bearer ${idToken}`,
           },

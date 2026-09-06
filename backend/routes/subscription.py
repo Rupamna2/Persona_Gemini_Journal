@@ -5,7 +5,7 @@ from typing import Dict, Any, Optional
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 
-from backend.auth import verify_token
+from backend.auth import verify_token, get_uid
 from backend.services.user_service import get_firestore_client
 from backend.services.rate_limit import get_subscription_status
 
@@ -26,10 +26,10 @@ class SubscriptionStatusResponse(BaseModel):
 
 @router.get("/status", response_model=SubscriptionStatusResponse)
 async def get_subscription_status_endpoint(
-    current_user: Dict[str, Any] = Depends(verify_token),
+    current_user: Any = Depends(verify_token),
 ) -> SubscriptionStatusResponse:
     """Retrieve current subscription tier and quota status without incrementing usage."""
-    uid = current_user.get("uid")
+    uid = get_uid(current_user)
     if not uid:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../auth/AuthContext';
 import { Plus, X, ArrowRight, Check, Compass, Shield } from 'lucide-react';
 
@@ -30,6 +30,33 @@ export const OnboardingPage: React.FC<{ onComplete?: () => void }> = ({ onComple
   const [customInstructions, setCustomInstructions] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let isMounted = true;
+    async function loadMasterPrompt() {
+      if (!idToken) return;
+      try {
+        const response = await fetch('/api/master-prompt', {
+          headers: { Authorization: `Bearer ${idToken}` },
+        });
+        if (response.ok && isMounted) {
+          const data = await response.json();
+          if (data.aboutMe) setAboutMe(data.aboutMe);
+          if (data.tone) setTone(data.tone);
+          if (Array.isArray(data.goals) && data.goals.length > 0) setGoals(data.goals);
+          if (Array.isArray(data.frameworks) && data.frameworks.length > 0) setSelectedFrameworks(data.frameworks);
+          if (data.thingsToAvoid) setThingsToAvoid(data.thingsToAvoid);
+          if (data.customInstructions) setCustomInstructions(data.customInstructions);
+        }
+      } catch (err) {
+        console.debug('No prior master prompt or failed to load:', err);
+      }
+    }
+    loadMasterPrompt();
+    return () => {
+      isMounted = false;
+    };
+  }, [idToken]);
 
   const handleAddGoal = (e: React.FormEvent | React.KeyboardEvent) => {
     e.preventDefault();
