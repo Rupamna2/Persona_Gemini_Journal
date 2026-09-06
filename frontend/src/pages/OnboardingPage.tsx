@@ -112,8 +112,15 @@ export const OnboardingPage: React.FC<{ onComplete?: () => void }> = ({ onComple
       });
 
       if (!response.ok) {
-        const data = await response.json().catch(() => ({ detail: 'Save failed' }));
-        throw new Error(data.detail || `Save failed with status ${response.status}`);
+        let errDetail = `Save failed (HTTP ${response.status})`;
+        try {
+          const data = await response.json();
+          errDetail = (typeof data.detail === 'string' ? data.detail : JSON.stringify(data.detail)) || data.message || data.error || errDetail;
+        } catch {
+          const text = await response.text().catch(() => '');
+          if (text) errDetail = text;
+        }
+        throw new Error(errDetail);
       }
 
       await checkMasterPromptStatus();
