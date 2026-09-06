@@ -1,150 +1,178 @@
-# Personal Gemini Journal
+# 🧠 Personal Gemini Journal
 
-> An intelligent, calm, and secure AI journaling companion built with Gemini 3.7 / 3.6 Flash, NVIDIA NIM failover, long-term semantic memory, real-time geolocation mood analytics, and executive coaching frameworks.
-
-**Live Application URL**: [https://personal-gemini-journal-507113.web.app](https://personal-gemini-journal-507113.web.app)  
-**Live Backend API**: [https://gemini-journal-api-396039992677.asia-south1.run.app](https://gemini-journal-api-396039992677.asia-south1.run.app)
-
----
-
-## 1. What This Is
-
-Personal Gemini Journal is a calm, dark-themed reflective journaling companion and executive coach. It combines multi-turn conversational journaling with dynamic emotional intelligence, long-term semantic retrieval across past journal entries, and automated behavioral analytics. The application adheres to strict responsible AI guardrails, owner-bound data encryption, and server-side rate limits to deliver a trustworthy, highly personalized space for daily reflection, decision evaluation, and mental clarity.
+> **Submission for the Google Cloud Gen AI Academy (APAC Edition) Ideathon**  
+> **Theme:** Accelerate AI with Cloud Run  
+> **Region:** APAC (Deployed in `asia-south1`)  
+> **Security Constitution:** Governed by `AGENTS.md`  
+> **Production Live Backend:** Deployed Serverless on Google Cloud Run  
 
 ---
 
-## 2. Architecture & System Design
+## 🌟 The "Why": Solving the Burnout Epidemic
+In today's fast-paced tech industry, professionals and developers face an unprecedented rate of **burnout**. Standard journals are static—they don't listen, they don't help you process emotions, and they don't connect the dots in your thinking. 
 
-```mermaid
-graph TD
-    User([User Browser]) <-->|HTTPS / React 18 SPA| Hosting[Firebase Hosting<br>personal-gemini-journal-507113.web.app]
-    Hosting <-->|Proxy Rewrite /api/**| CloudRun[Cloud Run Backend Service<br>gemini-journal-api<br>asia-south1]
-    
-    subgraph "GCP Security & Storage Boundary"
-        CloudRun <-->|Admin SDK / ADC| Firestore[(Cloud Firestore Native<br>users/{uid}/**)]
-        CloudRun <-->|Secret Accessor| Secrets[Google Cloud Secret Manager<br>GEMINI_API_KEY / NVIDIA_API_KEY]
-        CloudRun -->|Async Event| PubSub[Cloud Pub/Sub Topic<br>journal-enrichment]
-        PubSub -->|Push Subscription| CloudRun
-    end
+**Personal Gemini Journal** is an empathetic, secure, and resilient AI journaling companion designed to help users navigate professional stress, track mental energy, and uncover hidden life patterns. By integrating advanced generative AI with real-time environmental context and absolute data privacy, it transforms the humble journal into an active wellness partner.
 
-    subgraph "Multi-Provider AI Fallback Ladder"
-        CloudRun -->|Primary Agent| Gemini[Google Gemini 3.7 Flash / 3.6 Flash]
-        CloudRun -.->|Instant 429 Failover| Nvidia[NVIDIA NIM<br>Llama 3.2 11B / Nemotron 120B]
-    end
-```
+---
 
-### 4-Step Master Prompt Instruction Precedence
+## 🏗️ Production-Grade Architecture
+This application is built from the ground up for stability, scalability, and airtight security, utilizing a fully-integrated Google Cloud and Firebase ecosystem.
 
 ```
-1. FIXED_SECURITY_PREAMBLE           (Hardcoded immutable system invariant)
-2. <user_master_prompt>...</user_master_prompt> (Passive context, never authority)
-3. Mode-Specific Coaching Instruction (FreeWrite / Decision / Gratitude / Goals)
-4. Conversation History              (Multi-turn turns)
+                  ┌────────────────────────────────────────┐
+                  │          React 18 + Vite + Tailwind    │
+                  │             (Firebase Hosting)         │
+                  └───────────────────┬────────────────────┘
+                                      │ (Bearer ID Token)
+                                      ▼
+                  ┌────────────────────────────────────────┐
+                  │           FastAPI Python API           │
+                  │          (Serverless Cloud Run)        │
+                  └──────┬────────────┬────────────┬───────┘
+                         │            │            │
+      ┌──────────────────┴─┐   ┌──────┴──────┐   ┌─┴──────────────────┐
+      │  Google ADK 2.x    │   │  Firestore  │   │ Cloud Pub/Sub Topic│
+      │  Multi-Agent Loop  │   │ Vector KNN  │   │ (journal-enrich)   │
+      └────────┬───────────┘   └─────────────┘   └─────────┬──────────┘
+               │                                           │ (Push Hook)
+               ▼                                           ▼
+      ┌──────────────────┐                       ┌──────────────────┐
+      │   Gemini 3.7     │                       │ Cloud Run Worker │
+      │  Resilient API   │                       │ (Weather Engine) │
+      └──────────────────┘                       └─────────┬────────┘
+                                                           │
+                                                           ▼
+                                                 ┌──────────────────┐
+                                                 │ Open-Meteo &     │
+                                                 │ BigQuery GSOD    │
+                                                 └──────────────────┘
+```
+
+### 🛠️ Technology Stack
+* **Frontend:** React 18, Vite, Tailwind CSS, Recharts (Responsive Bento-Grid UI)
+* **Backend:** Python 3.11/3.12, FastAPI (Containerized on Google Cloud Run in `asia-south1`)
+* **Orchestration:** Google ADK 2.x (Agent Development Kit) SequentialAgent Workflow
+* **Primary LLM:** `gemini-3.7-flash` (GA August 13, 2026)
+* **Fallback LLM Ladder:** `gemini-3.7-flash` ➡️ `gemini-3.6-flash` ➡️ `gemini-flash-latest` ➡️ `gemini-2.5-flash` (Ensures 100% uptime)
+* **Database:** Cloud Firestore (Native Mode) + Native Firestore Vector Search (KNN, Cosine Distance)
+* **Authentication:** Firebase Authentication (Strict Federated Google Sign-In only, removing password attack vectors)
+* **Asynchronous Jobs:** Cloud Pub/Sub triggering a Cloud Run push subscriber for background weather data collection
+* **Analytics Layer:** BigQuery public dataset `bigquery-public-data.noaa_gsod` for climate/historical fallback
+* **Secrets Management:** Google Cloud Secret Manager (API keys never touch the repository or environment files)
+* **Export Engine:** `openpyxl` generating streamed-on-demand Excel reports (zero persistent disk footprint)
+
+---
+
+## 🔒 Security Constitution & The Threat Model
+To fulfill the Ideathon's rigorous security requirements, this project is designed around a formalized **Security Constitution** located in `AGENTS.md` and enforced programmatically at multiple boundaries.
+
+### 🛡️ Mapped Countermeasure Matrix
+| Zone | Target Threat | Hardened Solution |
+| :--- | :--- | :--- |
+| **Input Surfaces** | Prompt injection via personalized Master Prompt | An **immutable system preamble** (`FIXED_SECURITY_PREAMBLE` inside `root_agent.py`) is hardcoded and always executed first. User-configured customization values are cleanly isolated inside `<user_master_prompt>` tags and treated strictly as passive context, never commands. |
+| **Input Surfaces** | Malicious / oversized payloads | Full schema validation via Pydantic on all inbound JSON request bodies at the FastAPI boundary before any database or LLM execution. |
+| **Reasoning & Planning** | Tool Hijack / Rogue Execution | Sub-agents take strictly structured, typed arguments. No dynamic text-based system command or raw SQL generation is allowed. |
+| **Memory & State** | Cross-User Data Leaks & Session Hijacking | Short-lived Firebase ID tokens verified on every request. **Redundant Access Control:** Airtight wildcard owner-bound firestore security rule (`users/{userId}/{document=**}`) coupled with server-side API routing logic that strictly verifies `request.auth.uid == path.userId`. |
+| **Inter-System** | Key Leakage | No API keys exist in git, Dockerfiles, or client-side bundles. Keys are securely retrieved from Secret Manager at runtime. |
+
+---
+
+## ⚡ Key Features
+
+### 1. Dual-Provider Resilient LLM Engine (Self-Healing)
+Your journaling session shouldn't freeze during high API traffic. Our custom backend features an instant failover system. If Google's Gemini API hits rate limits (HTTP 429) or network errors, the agent engine instantly falls back through our model ladder, routing seamlessly to **NVIDIA NIM** endpoints running Llama 3.2 and Nemotron models to guarantee a flawless user experience.
+
+### 2. Geo-Location Memory & Mood Happiness Predictor
+Includes free real-time weather integration (using the Open-Meteo API) with automatic coordinates-to-city resolution supporting Indian hubs (Bengaluru, Delhi, Mumbai, Pune, etc.) and global cities. The app calculates mood delta scores against local microclimates and highlights geolocated entry badges inside your vault.
+
+### 3. Decoupled Async Weather Enrichment
+To enforce the **Save Path Atomicity Invariant**, fetching weather context is never performed on the main transaction path. When you end a session, your journal is instantly committed to Firestore. A Cloud Pub/Sub message is published, triggering a lightweight background subscriber that queries the BigQuery GSOD historical weather database to enrich your entry asynchronously without blocking you.
+
+### 4. Memory Vault (Semantic Search & Citations)
+Allows you to query your past entries using natural language. The backend uses `gemini-embedding-001` to generate a 768-dimensional normalized vector (truncated using MRL to save space and indexing costs), storing it directly inside the Firestore document. It queries entries via native **Firestore Vector Search (KNN, COSINE)** and returns summaries with precise rank and date citations.
+
+### 5. Responsible-AI Grounding Safety Net
+If the per-turn mood classifier (`gemini-2.5-flash-lite`) detects a sustained period of low mood scores (e.g., scores $\le$ 2 across three consecutive turns) or explicit crisis language, the UI renders a non-intrusive, supportive prompt card surfacing national 24/7 helpline chips (AASRA, Vandrevala Foundation, etc.) with DOMPurify sanitization.
+
+### 6. SaaS Monetization Rate Limiter
+Features transaction-level rolling rate limiting. Free Tier accounts are capped at **10 chat messages per rolling 30-day period**. The rate checks are transactional and executed *before* any Gemini call is made, protecting your API quota from automated scraping or testing. A "Coming Soon" premium Pro Tier toggle is visible on the dashboard.
+
+---
+
+## 📂 Repository Structure
+```
+├── AGENTS.md                    # Airtight Security Constitution & Precedence
+├── firestore.rules              # Enforced owner-bound Firebase Firestore security rules
+├── Dockerfile                   # Multi-stage production container build config
+├── backend/
+│   ├── main.py                  # FastAPI app router and server initialization
+│   ├── auth.py                  # Firebase Admin SDK short-lived ID token validation
+│   ├── agents/
+│   │   ├── model_utils.py       # Dual-Provider Resilient Multi-Model Fallback Ladder
+│   │   ├── root_agent.py        # Master Orchestrator & Fixed Security Preamble boundary
+│   │   ├── journal_coach.py     # 5-mode active conversational journaling agent
+│   │   ├── mood_analyzer.py     # Low-cost turn-by-turn structured JSON extraction
+│   │   ├── summary_agent.py     # Post-session structured metadata synthesis
+│   │   ├── memory_agent.py      # Grounded RAG agent over Firestore vector index
+│   │   └── analytics_agent.py   # BigQuery + Open-Meteo correlation analytics agent
+│   ├── services/
+│   │   ├── rate_limit.py        # Atomic server-side transaction check-and-increment
+│   │   ├── save_pipeline.py     # Atomic save transaction + Pub/Sub queueing
+│   │   └── embeddings.py        # gemini-embedding-001 MRL-truncation helper
+│   └── routes/
+│       ├── chat.py              # Rate-limit-gated multi-turn journaling endpoint
+│       ├── save.py              # Session end and transaction commitment route
+│       ├── memory.py            # Vector KNN semantic query search route
+│       └── export.py            # Streamed openpyxl Excel download exporter
+└── frontend/
+    ├── src/
+    │   ├── pages/               # Fully-wired bento-grid pages
+    │   ├── design/              # Raw Stitch Mockups
+    │   └── firebase.ts          # client Firebase app initialization
 ```
 
 ---
 
-## 3. Security Constitution (`AGENTS.md`)
+## 🚀 Getting Started Locally
 
-The application is governed by an immutable Security Constitution with zero tolerance for prompt injection or cross-tenant leaks:
-- **Google Sign-In Only**: Strictly federated authentication using Firebase Auth and Google OAuth2; zero password storage, registration forms, or reset flows.
-- **Owner-Bound Firestore Rules**: Single wildcard rule `match /users/{userId}/{document=**}` enforcing `request.auth.uid == userId` across all subcollections (`config`, `sessions`, `journals`, `stats`, `subscription`), with deny-all on non-user documents.
-- **Secret Manager Isolation**: `GEMINI_API_KEY` and `NVIDIA_API_KEY` live exclusively in Google Cloud Secret Manager and are mounted directly into container environment variables at runtime.
-- **Server-Side Quota Enforcement**: Transactional atomic rate limiting (`enforce_and_increment`) runs before prompt assembly or AI model invocation.
-- **Input Sanitization & Output Encoding**: Every API request is parsed via Pydantic; all LLM-rendered responses pass through `DOMPurify.sanitize()` on the client.
-
----
-
-## 4. Core Requirements Checklist
-
-| Requirement | Status | Implementation Details |
-|---|:---:|---|
-| **Google Sign-In Authentication** | ✅ Done | Implemented in `backend/auth.py` (`verify_token`) and `frontend/src/auth/AuthContext.tsx` with popup auth and automatic user sync. |
-| **Personalized Master Prompt Engine** | ✅ Done | Built in `backend/routes/master_prompt.py` and `OnboardingPage.tsx` supporting custom tones (`Empathetic`, `Direct`, `Logical`), goals, and frameworks (`5-Why`, `Pros-Cons`, `Decision Matrix`, `SWOT`, `First-Principles`). |
-| **Multi-Turn Reflective Chat & Extraction** | ✅ Done | Built in `backend/routes/chat.py` with multi-turn session persistence, live mood & energy extraction, and responsible AI grounding safety nets. |
-| **Long-Term Memory Vault (KNN Search)** | ✅ Done | 768-dim normalized MRL embeddings generated via `gemini-embedding-001`, indexed in Firestore vector store, queried via cosine similarity with grounded citations in `MemoryVaultPage.tsx`. |
-
----
-
-## 5. Unique Enhancements (Phase 3)
-
-1. **Geo-Location Memory & Location-Mood Happiness Predictor (Unit 19)**:
-   - Free Open-Meteo real-time weather integration (supporting all Indian metros and global locations without external API keys) with NOAA BigQuery climate fallback.
-   - Location-enriched 768-dim embeddings comparing emotional happiness scores across cities/locations in `PatternsPage.tsx`.
-2. **Resilient Multi-Provider AI Fallback Ladder**:
-   - Automatic 10-minute circuit breaker instantly failing over to NVIDIA NIM (`meta/llama-3.2-11b-vision-instruct` and `nvidia/nemotron-3-super-120b`) upon Gemini prepayment credit exhaustion (`429 RESOURCE_EXHAUSTED`).
-3. **In-Memory Streaming Excel Export (Unit 14)**:
-   - Zero-storage streaming `.xlsx` workbook generation covering weekly, monthly, and all-time journal history with formatted mood and insight tables.
-
----
-
-## 6. Setup & Deployment Instructions
-
-### Prerequisites
-- Python 3.11+ and Node.js 18+
-- Google Cloud SDK (`gcloud`) with active billing account
-- Firebase project `personal-gemini-journal-507113`
-
-### Environment Configuration (`backend/.env`)
-```ini
-GOOGLE_CLOUD_PROJECT=personal-gemini-journal-507113
-FIREBASE_PROJECT_ID=personal-gemini-journal-507113
-GEMINI_API_KEY=your_gemini_api_key
-NVIDIA_API_KEY=your_nvidia_api_key
-```
-
-### Local Development
+### 1. Backend Setup
 ```bash
-# 1. Start Backend API
-cd backend && python3 -m venv .venv && source .venv/bin/activate
+cd backend
+python -m venv venv
+source venv/bin/activate  # On Windows use `venv\Scripts\activate`
 pip install -r requirements.txt
-PYTHONPATH=. uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload
-
-# 2. Start Frontend Client
-cd frontend && npm install && npm run dev
 ```
-
-### Production Deployment
+Create a `.env` file in the `backend/` directory:
+```env
+GEMINI_API_KEY=your_gemini_api_key_here
+NVIDIA_API_KEY=your_nvidia_api_key_here
+FIREBASE_PROJECT_ID=personal-gemini-journal-507113
+# In production, Cloud Run reads these straight from Secret Manager!
+```
+Run the FastAPI developer server:
 ```bash
-# 1. Deploy Cloud Run Backend
-gcloud run deploy gemini-journal-api \
-  --source . \
-  --region asia-south1 \
-  --project personal-gemini-journal-507113 \
-  --allow-unauthenticated \
-  --set-env-vars GOOGLE_CLOUD_PROJECT=personal-gemini-journal-507113,FIREBASE_PROJECT_ID=personal-gemini-journal-507113 \
-  --set-secrets GEMINI_API_KEY=GEMINI_API_KEY:latest,NVIDIA_API_KEY=NVIDIA_API_KEY:latest
+uvicorn main:app --reload --port 8000
+```
+Verify local health check:
+```bash
+curl http://localhost:8000/api/health
+# {"status":"healthy"}
+```
 
-# 2. Release Firestore Security Rules
-# Released via Google Cloud Firebaserules REST API
-
-# 3. Build & Deploy Frontend to Firebase Hosting
-cd frontend && npm run build
-# Deployed via Firebase Hosting REST API with Cloud Run proxy rewrites
+### 2. Frontend Setup
+```bash
+cd frontend
+npm install
+npm run dev
 ```
 
 ---
 
-## 7. Deliverables Checklist
-
-- [x] `AGENTS.md` active at root enforcing security invariants
-- [x] Single Google Sign-In action with zero password fields
-- [x] Custom Master Prompt onboarding & configuration screen
-- [x] Interactive 5-mode journaling chat interface (`ChatPage.tsx`)
-- [x] End-of-session synthesis & atomic save pipeline (`summary_agent.py`)
-- [x] Semantic Memory Vault with citation match cards (`MemoryVaultPage.tsx`)
-- [x] Bento-Grid Analytics Dashboard with Recharts sparklines (`DashboardPage.tsx`)
-- [x] Life Pattern Analytics & Location-Mood Happiness Predictor (`PatternsPage.tsx`)
-- [x] In-memory Excel workbook download (`export.py`)
-- [x] Owner-bound `firestore.rules` deployed clean to live Firestore database
-- [x] Cloud Run backend deployed and running in `asia-south1`
-- [x] Live Firebase Hosting website serving compiled React application
-- [x] 64 / 64 unit and integration tests passing (`pytest backend/tests/`)
+## 🌟 Production Deployment Checklist
+Our active backend is fully deployed to Cloud Run in the `asia-south1` region:
+* **Production Live Health Endpoint:** `https://gemini-journal-api-396039992677.asia-south1.run.app/api/health` ➡️ Response: `{"status":"healthy","time":"..."}`
 
 ---
 
-## 8. Live Endpoints
-
-- **Frontend Application**: [https://personal-gemini-journal-507113.web.app](https://personal-gemini-journal-507113.web.app)
-- **Backend Service**: [https://gemini-journal-api-396039992677.asia-south1.run.app](https://gemini-journal-api-396039992677.asia-south1.run.app)
-- **Health Check**: [https://personal-gemini-journal-507113.web.app/api/health](https://personal-gemini-journal-507113.web.app/api/health)
+## 📜 Acknowledgements
+Built for the **Google Cloud Gen AI Academy APAC Edition Ideathon** under the official campaign hashtag **`#AccelerateAIWithCloudRun`**. Special thanks to Google Cloud, Firebase, and Hack2skill for hosting an outstanding, challenge-based developer learning journey.
