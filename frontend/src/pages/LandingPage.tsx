@@ -31,9 +31,24 @@ export const LandingPage: React.FC = () => {
 
         {/* Error Alert if any */}
         {error && (
-          <div className="mb-6 p-3.5 rounded-xl bg-state-error/10 border border-state-error/20 text-state-error text-xs flex items-center gap-2.5">
-            <span className="w-1.5 h-1.5 rounded-full bg-state-error shrink-0" />
-            <span>{error}</span>
+          <div className="mb-6 p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs space-y-2">
+            <div className="flex items-start gap-2">
+              <span className="w-2 h-2 rounded-full bg-amber-400 shrink-0 mt-1" />
+              <div className="space-y-1">
+                <span className="font-semibold text-text-primary block">Authentication Notice</span>
+                <p className="leading-relaxed text-text-muted">{error}</p>
+                {error.includes('Authorized Domains') && (
+                  <a
+                    href="https://console.firebase.google.com/project/avid-pentameter-mr6mz/authentication/settings"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-block mt-2 text-accent-primary hover:underline font-medium text-[11px]"
+                  >
+                    Open Firebase Authorized Domains Settings ↗
+                  </a>
+                )}
+              </div>
+            </div>
           </div>
         )}
 
