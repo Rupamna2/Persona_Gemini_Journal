@@ -4,13 +4,25 @@ Update this file after every meaningful implementation change.
 
 ## Current Phase
 
-- Phase 3 — Enhancements & Geolocation Engine (Completed) / Deploy (Ready)
+- Phase 3 — Enhancements & Geolocation Engine (Completed) / Unit 18 Deployment (Cloud Run Backend Deployed, Secret Manager Configured, Pub/Sub Wired, Firebase Hosting Ready)
 
 ## Current Goal
 
-- Unit 19 completed. Ready to proceed to Unit 18: Deploy — Cloud Run backend + Firebase Hosting frontend + firestore.rules (`context/feature-specs/18-deploy.md`).
+- Finalize Firebase Hosting & Firestore Rules deployment for `personal-gemini-journal-507113` (`context/feature-specs/18-deploy.md`).
 
 ## Completed
+
+- **Unit 18 — Deploy (Cloud Run Backend + Secret Manager + Pub/Sub)**:
+  - Created production `Dockerfile` in root directory.
+  - Enabled GCP services: `run.googleapis.com`, `secretmanager.googleapis.com`, `cloudbuild.googleapis.com`, `artifactregistry.googleapis.com`, `pubsub.googleapis.com`, `firestore.googleapis.com`.
+  - Stored `GEMINI_API_KEY` and `NVIDIA_API_KEY` in Google Cloud Secret Manager on `personal-gemini-journal-507113` with automatic replication.
+  - Granted `roles/secretmanager.secretAccessor` to Cloud Run default compute service account `396039992677-compute@developer.gserviceaccount.com`.
+  - Built container image via Cloud Build and deployed service `gemini-journal-api` to Cloud Run in `asia-south1`.
+  - Verified live backend health endpoint: `https://gemini-journal-api-396039992677.asia-south1.run.app/api/health` ➜ 200 OK.
+  - Created Pub/Sub topic `journal-enrichment` and push subscription `journal-enrichment-sub` wired directly to `https://gemini-journal-api-396039992677.asia-south1.run.app/api/subscriber/weather-enrichment`.
+  - Configured `firebase.json` with Cloud Run proxy rewrites for `/api/**` routing directly to `gemini-journal-api` in `asia-south1`.
+  - Built frontend production assets via `npm run build` in `frontend/dist/`.
+  - Verified `firestore.rules` validation passes with 0 errors via Firebase security rules validator.
 
 - **Unit 01 — Security constitution drop-in + sanity check**: Verified `AGENTS.md` at root, verified `.agent/workflows/` (`security-review.md`, `generate-readme.md`, `test-walkthrough.md`), verified `firestore.rules` with single owner-bound wildcard rule, and confirmed agent comprehension of standing rules (Google-Sign-In only, owner-bound Firestore rule, 4-step Master Prompt instruction precedence, secret management, server-side rate-limit gating, and secure coding standards).
 - **Unit 02 — Project scaffold + Firebase setup**: Created FastAPI backend skeleton (`backend/agents/`, `backend/routes/`, `backend/services/`, `backend/main.py`, `backend/requirements.txt`), React 18 + Vite + Tailwind frontend (`frontend/src/pages/`, `frontend/src/design/`, `frontend/src/firebase.ts`, `frontend/.env`), `firebase.json`, `.firebaserc`, verified local FastAPI `/api/health` 200 OK, confirmed `npm run build` passes clean, and verified active Firebase project `avid-pentameter-mr6mz` and Firestore database in `asia-south1`.
